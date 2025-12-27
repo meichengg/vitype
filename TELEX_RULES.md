@@ -464,7 +464,7 @@ The algorithm finds the target vowel in this priority order:
 
 1. **Single vowel** → that vowel takes the tone
 2. **Nucleus-only vowel present** → that vowel takes the tone (if multiple, the **last** one)
-3. **Two regular vowels** → **first** vowel takes the tone
+3. **Two regular vowels** → **second** vowel if followed by a final consonant; otherwise **first**
 4. **Three or more regular vowels** → **middle** vowel takes the tone
 
 ### 4.4 Tone Placement Examples
@@ -473,7 +473,8 @@ The algorithm finds the target vowel in this priority order:
 |------|-------|--------|--------------|--------|
 | tá | `ta` + `s` | a | Single vowel | t**á** |
 | mùa | `mua` + `f` | u, a | Two vowels → first | m**ù**a |
-| hóa | `hoa` + `s` | o, a | Two vowels → first | h**ó**a |
+| hóa | `hoa` + `s` | o, a | Two vowels → first (open syllable) | h**ó**a |
+| toàn | `toan` + `f` | o, a | Two vowels + consonant → second | to**à**n |
 | tiến | `tieen` + `s` | i, ê | ê is nucleus-only | ti**ế**n |
 | muốn | `muoon` + `s` | u, ô | ô is nucleus-only | mu**ố**n |
 | khuỷa | `khuya` + `r` | u, y, a | Three vowels → middle | khu**ỷ**a |
@@ -554,13 +555,26 @@ The `gi` cluster has conditional behavior depending on what follows:
 
 **Without this rule**, `gias` would incorrectly produce `gía` (tone on `i` as first of two vowels).
 
+#### 4.6.4 The `oa` Cluster with Final Consonants
+
+When **two regular vowels** are followed by a **final consonant**, the tone goes on the **second vowel**:
+
+| Input | Has Final Consonant | Tone Position | Result |
+|-------|---------------------|---------------|--------|
+| `toanf` | Yes (n) | a | toàn |
+| `hoanhf` | Yes (nh) | a | hoành |
+| `toenf` | Yes (n) | e | toèn |
+| `tienf` | Yes (n) | e | tièn |
+
+**Without this rule**, `toanf` would incorrectly produce `tòan` (tone on `o`).
+
 ### 4.7 Auto Fix Tone (Dynamic Tone Repositioning)
 
 When **Auto Fix Tone** is enabled (default: on), the tone mark is automatically repositioned to the correct vowel as you type additional vowels. This allows more natural typing without worrying about tone placement order.
 
 #### 4.7.1 How It Works
 
-When a new vowel is added to a word that already has a tone mark, the system:
+When a new vowel or final consonant is added to a word that already has a tone mark, the system:
 1. Detects the currently toned vowel
 2. Recalculates the correct tone position based on the new vowel cluster
 3. Moves the tone if the position has changed
@@ -571,6 +585,7 @@ When a new vowel is added to a word that already has a tone mark, the system:
 |----------------|--------------|--------|-------------|
 | `hoa` + `f` | hòa | hòa | 2 vowels → tone on 1st (o) |
 | `hòa` + `i` | hoài | hoài | 3 vowels → tone moves to middle (a) |
+| `hòa` + `n` | hoàn | hoàn | 2 vowels + consonant → tone moves to 2nd (a) |
 | `mua` + `f` | mùa | mùa | 2 vowels → tone on 1st (u) |
 | `mùa` + `i` | muài | muài | 3 vowels → tone moves to middle (a) |
 | `tuyetj` + `e` | tuỵet → tuyệt | tuyệt | e→ê creates nucleus-only vowel, tone moves to ê |

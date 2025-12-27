@@ -127,6 +127,16 @@ impl VitypeEngine {
             }
         }
 
+        if self.auto_fix_tone && !is_vowel(ch) {
+            if let Some(action) = self.reposition_tone_if_needed(true, None) {
+                if let Some(fallback) = self.handle_invalid_syllable_if_needed(previous_buffer_count)
+                {
+                    return Some(fallback);
+                }
+                return Some(action);
+            }
+        }
+
         self.last_transform_key = None;
         self.last_w_transform_kind = WTransformKind::None;
         self.handle_invalid_syllable_if_needed(previous_buffer_count)
@@ -1054,15 +1064,10 @@ impl VitypeEngine {
         }
 
         if vowel_indices.len() == 2 {
-            let first_vowel = self.buffer[vowel_indices[0]];
-            let second_vowel = self.buffer[vowel_indices[1]];
-            let first_base = lower_char(self.get_base_vowel(first_vowel));
-            let second_base = lower_char(self.get_base_vowel(second_vowel));
+            let has_final_consonant = vowel_indices[1] + 1 < before;
 
-            if first_base == 'u' && second_base == 'y' {
-                if vowel_indices[1] + 1 < before {
-                    return Some(vowel_indices[1]);
-                }
+            if has_final_consonant {
+                return Some(vowel_indices[1]);
             }
 
             return Some(vowel_indices[0]);

@@ -473,6 +473,13 @@ mod key_transformer_tests {
     }
 
     #[test]
+    fn testToneOnTwoVowelsWithFinalConsonant() {
+        // two regular vowels + final consonant → tone on 2nd vowel
+        assert_eq!(apply_input("toenf"), "toèn");
+        assert_eq!(apply_input("tienf"), "tièn");
+    }
+
+    #[test]
     fn testToneOnSpecialVowelE() {
         let mut transformer = VitypeEngine::new();
 
@@ -645,5 +652,19 @@ mod key_transformer_tests {
         assert_eq!(apply_input("ddaau"), "đâu"); // sequential: dd→đ, aa→â, u
         assert_eq!(apply_input("dauda"), "đâu"); // free transform both d and a
         assert_eq!(apply_input("ddaua"), "đâu"); // dd→đ, free transform a...a
+    }
+
+    // MARK: - Free Transform with Tone Tests
+
+    #[test]
+    fn testFreeTransformWithTone() {
+        // "toàn" from various input patterns
+        assert_eq!(apply_input("toanf"), "toàn");
+        assert_eq!(apply_input("tofan"), "toàn");
+
+        // "hoành" from various input patterns
+        assert_eq!(apply_input("hoanfh"), "hoành");
+        assert_eq!(apply_input("hoanhf"), "hoành");
+        assert_eq!(apply_input("hofanh"), "hoành");
     }
 }
