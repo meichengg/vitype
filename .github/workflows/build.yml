@@ -1,0 +1,77 @@
+name: Build ViType
+
+on:
+  release:
+    types: [created]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: macos-26
+    permissions:
+      contents: write
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          submodules: false
+
+      - name: Setup SSH for private submodule
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.SUBMODULE_SSH_KEY }}
+        run: |
+          mkdir -p ~/.ssh
+          echo "$SSH_PRIVATE_KEY" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          ssh-keyscan github.com >> ~/.ssh/known_hosts
+          cat >> ~/.ssh/config << EOF
+          Host github.com-dat
+            HostName github.com
+            User git
+            IdentityFile ~/.ssh/id_ed25519
+          EOF
+          chmod 600 ~/.ssh/config
+          git submodule update --init --recursive
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-apple-darwin
+
+      - name: Cache Rust dependencies
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: ViType-core
+
+      - name: Select Xcode 26.2
+        run: sudo xcode-select -s /Applications/Xcode_26.2.app/Contents/Developer
+
+      - name: Build with xcodebuild
+        working-directory: ViType-macos
+        run: |
+          xcodebuild -scheme ViType \
+            -configuration Release \
+            -archivePath build/ViType.xcarchive \
+            -destination 'generic/platform=macOS' \
+            CODE_SIGN_IDENTITY="-" \
+            CODE_SIGNING_REQUIRED=NO \
+            archive
+
+      - name: Export app from archive
+        run: |
+          cp -R ViType-macos/build/ViType.xcarchive/Products/Applications/ViType.app ./ViType.app
+
+      - name: Create DMG
+        run: |
+          hdiutil create -volname "ViType" \
+            -srcfolder ViType.app \
+            -ov -format UDZO \
+            ViType.dmg
+
+      - name: Upload DMG to Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: ViType.dmg
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
