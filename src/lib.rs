@@ -3,6 +3,15 @@ use std::collections::{HashMap, HashSet};
 use std::ffi::{CStr, CString};
 use std::os::raw::c_char;
 use std::ptr;
+use unicode_normalization::UnicodeNormalization;
+
+#[repr(C)]
+#[derive(Clone, Copy, PartialEq, Default)]
+pub enum OutputEncoding {
+    #[default]
+    Unicode = 0,
+    CompositeUnicode = 1,
+}
 
 #[derive(Clone, Copy, PartialEq)]
 enum WTransformKind {
@@ -27,6 +36,7 @@ pub struct VitypeEngine {
     last_w_transform_kind: WTransformKind,
     suppressed_transform_key: Option<char>,
     auto_fix_tone: bool,
+    output_encoding: OutputEncoding,
 }
 
 impl VitypeEngine {
@@ -39,6 +49,7 @@ impl VitypeEngine {
             last_w_transform_kind: WTransformKind::None,
             suppressed_transform_key: None,
             auto_fix_tone: true,
+            output_encoding: OutputEncoding::Unicode,
         }
     }
 
@@ -1220,6 +1231,13 @@ fn is_vowel(ch: char) -> bool {
     VOWELS.contains(&ch)
 }
 
+fn convert_to_output_encoding(text: String, encoding: OutputEncoding) -> String {
+    match encoding {
+        OutputEncoding::Unicode => text,
+        OutputEncoding::CompositeUnicode => text.nfd().collect(),
+    }
+}
+
 #[repr(C)]
 pub struct VitypeTransformResult {
     pub has_action: bool,
@@ -1280,6 +1298,19 @@ pub extern "C" fn vitype_engine_set_auto_fix_tone(engine: *mut VitypeEngine, ena
 }
 
 #[no_mangle]
+pub extern "C" fn vitype_engine_set_output_encoding(engine: *mut VitypeEngine, encoding: i32) {
+    if engine.is_null() {
+        return;
+    }
+    unsafe {
+        (*engine).output_encoding = match encoding {
+            1 => OutputEncoding::CompositeUnicode,
+            _ => OutputEncoding::Unicode,
+        };
+    }
+}
+
+#[no_mangle]
 pub extern "C" fn vitype_engine_process(
     engine: *mut VitypeEngine,
     input_utf8: *const c_char,
@@ -1294,10 +1325,13 @@ pub extern "C" fn vitype_engine_process(
         Err(_) => return empty_result(),
     };
 
-    let action = unsafe { (*engine).process(input_str) };
+    let (action, output_encoding) = unsafe {
+        ((*engine).process(input_str), (*engine).output_encoding)
+    };
     match action {
         Some(action) => {
-            let c_text = CString::new(action.text).unwrap_or_else(|_| CString::new("").unwrap());
+            let output_text = convert_to_output_encoding(action.text, output_encoding);
+            let c_text = CString::new(output_text).unwrap_or_else(|_| CString::new("").unwrap());
             VitypeTransformResult {
                 has_action: true,
                 delete_count: action.delete_count as i32,
