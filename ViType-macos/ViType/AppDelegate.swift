@@ -27,8 +27,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var shortcutModifiers: CGEventFlags = []
 
     func applicationDidFinishLaunching(_ notification: Notification) {
-        // Start as accessory app (menu bar only, no Dock icon)
-        NSApp.setActivationPolicy(.accessory)
         // Register default values
         UserDefaults.standard.register(defaults: [
             "autoFixTone": true,
@@ -60,6 +58,21 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             name: .showSettingsWindow,
             object: nil
         )
+        
+        // Observe the initial settings window for close events (to hide from Dock when closed)
+        Task { @MainActor in
+            try? await Task.sleep(nanoseconds: 500_000_000) // 0.5 seconds for SwiftUI to create window
+            for window in NSApp.windows {
+                if window is NSPanel { continue }
+                if window.className.contains("StatusBar") { continue }
+                if window.level == .statusBar { continue }
+                
+                if window.contentView != nil && window.isVisible {
+                    self.observeWindowClose(window)
+                    break
+                }
+            }
+        }
     }
     
     @objc private func showSettingsWindow() {
@@ -111,6 +124,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
         // Keep the app running (menu bar icon) even when the settings window is closed
         return false
+    }
+    
+    func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
+        // Called when user clicks the app icon while it's already running (e.g., from Finder, Dock, Spotlight)
+        // Show the settings window and Dock icon for consistent behavior
+        showSettingsWindow()
+        return false // We handled it
     }
 
     deinit {
