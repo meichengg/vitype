@@ -30,6 +30,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // Register default values
         UserDefaults.standard.register(defaults: [
             "autoFixTone": true,
+            "inputMethod": 0, // 0 = Telex, 1 = VNI
             "outputEncoding": 0,
             AppExclusion.isEnabledKey: true,
             AppExclusion.excludedBundleIDsKey: "",
@@ -42,6 +43,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             AppExclusion.useAXGhostSuggestionKey: true,
         ])
 
+        refreshTransformerSettings()
         refreshFrontmostBundleID()
         refreshExcludedBundleIDs()
         refreshShortcutSettings()
@@ -197,11 +199,21 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             let wasBypassing = shouldBypassVietnameseInput()
             refreshExcludedBundleIDs()
             refreshShortcutSettings()
+            refreshTransformerSettings()
             let isBypassing = shouldBypassVietnameseInput()
             if wasBypassing != isBypassing {
                 transformer.reset()
             }
         }
+    }
+
+    private func refreshTransformerSettings() {
+        transformer.autoFixTone = UserDefaults.standard.bool(forKey: "autoFixTone")
+        let methodValue = UserDefaults.standard.integer(forKey: "inputMethod")
+        transformer.inputMethod = InputMethod(rawValue: Int32(methodValue)) ?? .telex
+
+        let encodingValue = UserDefaults.standard.integer(forKey: "outputEncoding")
+        transformer.outputEncoding = OutputEncoding(rawValue: Int32(encodingValue)) ?? .unicode
     }
 
     private func refreshFrontmostBundleID() {
@@ -336,9 +348,7 @@ extension AppDelegate {
         guard let s = event.keyboardGetUnicodeString() else { return false }
 
         // Update settings from UserDefaults
-        transformer.autoFixTone = UserDefaults.standard.bool(forKey: "autoFixTone")
-        let encodingValue = UserDefaults.standard.integer(forKey: "outputEncoding")
-        transformer.outputEncoding = OutputEncoding(rawValue: Int32(encodingValue)) ?? .unicode
+        refreshTransformerSettings()
         
         if let action = transformer.process(input: s) {
             let extraDeleteCount = shouldWipeGhostSuggestion() ? 1 : 0

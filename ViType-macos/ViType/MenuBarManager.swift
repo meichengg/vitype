@@ -51,13 +51,17 @@ final class MenuBarManager: NSObject {
 
     private func updateStatusItemAppearance() {
         let isEnabled = UserDefaults.standard.bool(forKey: AppExclusion.viTypeEnabledKey)
+        let inputMethodValue = UserDefaults.standard.integer(forKey: "inputMethod")
+        let inputMethodLabel = inputMethodValue == 1 ? "VNI" : "Telex"
 
         if let button = statusItem?.button {
             // Use "V" for Vietnamese enabled, "E" for English (disabled)
             button.title = isEnabled ? "V" : "E"
 
             // Optionally add a tooltip
-            button.toolTip = isEnabled ? "ViType: Vietnamese (Click to switch to English)" : "ViType: English (Click to switch to Vietnamese)"
+            button.toolTip = isEnabled
+                ? "ViType: Vietnamese (\(inputMethodLabel)) (Click to switch to English)"
+                : "ViType: English (Click to switch to Vietnamese)"
         }
     }
 
@@ -80,6 +84,7 @@ final class MenuBarManager: NSObject {
         let menu = NSMenu()
 
         let isEnabled = UserDefaults.standard.bool(forKey: AppExclusion.viTypeEnabledKey)
+        let inputMethodValue = UserDefaults.standard.integer(forKey: "inputMethod")
 
         let toggleItem = NSMenuItem(
             title: isEnabled ? "Switch to English" : "Switch to Vietnamese",
@@ -88,6 +93,30 @@ final class MenuBarManager: NSObject {
         )
         toggleItem.target = self
         menu.addItem(toggleItem)
+
+        menu.addItem(NSMenuItem.separator())
+
+        let inputHeader = NSMenuItem(title: "Input Method", action: nil, keyEquivalent: "")
+        inputHeader.isEnabled = false
+        menu.addItem(inputHeader)
+
+        let telexItem = NSMenuItem(
+            title: "Telex",
+            action: #selector(selectTelex),
+            keyEquivalent: ""
+        )
+        telexItem.target = self
+        telexItem.state = inputMethodValue == 0 ? .on : .off
+        menu.addItem(telexItem)
+
+        let vniItem = NSMenuItem(
+            title: "VNI",
+            action: #selector(selectVni),
+            keyEquivalent: ""
+        )
+        vniItem.target = self
+        vniItem.state = inputMethodValue == 1 ? .on : .off
+        menu.addItem(vniItem)
 
         menu.addItem(NSMenuItem.separator())
 
@@ -124,6 +153,18 @@ final class MenuBarManager: NSObject {
 
     @objc private func menuToggleViType() {
         toggleViType()
+    }
+
+    @objc private func selectTelex() {
+        setInputMethod(0)
+    }
+
+    @objc private func selectVni() {
+        setInputMethod(1)
+    }
+
+    private func setInputMethod(_ method: Int) {
+        UserDefaults.standard.set(method, forKey: "inputMethod")
     }
 
     @objc private func openSettings() {

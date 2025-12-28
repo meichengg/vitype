@@ -12,6 +12,11 @@ struct KeyTransformAction: Equatable {
     let text: String
 }
 
+enum InputMethod: Int32 {
+    case telex = 0
+    case vni = 1
+}
+
 enum OutputEncoding: Int32 {
     case unicode = 0
     case compositeUnicode = 1
@@ -19,6 +24,17 @@ enum OutputEncoding: Int32 {
 
 final class KeyTransformer {
     private var engine: OpaquePointer?
+
+    var inputMethod: InputMethod = .telex {
+        didSet {
+            guard inputMethod != oldValue else { return }
+            if let engine {
+                vitype_engine_set_input_method(engine, inputMethod.rawValue)
+                // Engine keeps an internal buffer; switching method should clear it to avoid mixed parsing.
+                vitype_engine_reset(engine)
+            }
+        }
+    }
 
     var autoFixTone: Bool = true {
         didSet {
@@ -39,6 +55,7 @@ final class KeyTransformer {
     init() {
         engine = vitype_engine_new()
         if let engine {
+            vitype_engine_set_input_method(engine, inputMethod.rawValue)
             vitype_engine_set_auto_fix_tone(engine, autoFixTone)
             vitype_engine_set_output_encoding(engine, outputEncoding.rawValue)
         }

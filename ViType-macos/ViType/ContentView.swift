@@ -9,6 +9,7 @@ import SwiftUI
 
 struct ContentView: View {
     @AppStorage("autoFixTone") private var autoFixTone = true
+    @AppStorage("inputMethod") private var inputMethod = 0
     @AppStorage("outputEncoding") private var outputEncoding = 0
     @AppStorage(AppExclusion.isEnabledKey) private var appExclusionEnabled = true
     @AppStorage(AppExclusion.excludedBundleIDsKey) private var excludedBundleIDsText = ""
@@ -58,7 +59,7 @@ struct ContentView: View {
                 .font(.title)
                 .fontWeight(.bold)
             
-            Text("Vietnamese Telex Input Method")
+            Text("Vietnamese Input Method")
                 .font(.subheadline)
                 .foregroundColor(.secondary)
             
@@ -105,6 +106,19 @@ struct ContentView: View {
             }
             .padding(.leading, 20)
 
+            Divider()
+
+            Picker("Input Method:", selection: $inputMethod) {
+                Text("Telex").tag(0)
+                Text("VNI").tag(1)
+            }
+            .pickerStyle(.menu)
+
+            Text("Choose Telex (letters) or VNI (numbers) for Vietnamese input.")
+                .font(.caption)
+                .foregroundColor(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+            
             Divider()
             
             Toggle("Auto Fix Tone", isOn: $autoFixTone)
