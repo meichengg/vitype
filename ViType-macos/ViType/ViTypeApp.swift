@@ -13,7 +13,7 @@ struct ViTypeApp: App {
     var appDelegate
     
     var body: some Scene {
-        WindowGroup(id: "settings") {
+        Window("ViType Settings", id: "settings") {
             ContentView()
                 .injectWindowManager()
         }
