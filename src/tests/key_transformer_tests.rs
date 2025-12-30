@@ -119,6 +119,23 @@ mod key_transformer_tests {
         assert_eq!(apply_input("eaoe"), "eaoe");
         assert_eq!(apply_input("oa o"), "oa o");
     }
+    
+    #[test]
+    fn testNoOpRewriteActionIsNotEmittedForEnglishMultipleClusters() {
+        let mut transformer = VitypeEngine::new();
+        
+        assert_eq!(transformer.process("p"), None);
+        assert_eq!(transformer.process("a"), None);
+        assert_eq!(transformer.process("y"), None);
+        assert_eq!(transformer.process("m"), None);
+        
+        // "paym" + "e" creates multiple vowel clusters (a/y then e). The engine should switch to
+        // foreign mode, but must not emit a rewrite action when the visible text is already raw.
+        assert_eq!(transformer.process("e"), None);
+        
+        assert_eq!(transformer.process("n"), None);
+        assert_eq!(transformer.process("t"), None);
+    }
 
     #[test]
     fn testInvalidSyllableDisablesTransformsUntilBoundary() {

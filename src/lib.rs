@@ -266,17 +266,22 @@ impl VitypeEngine {
             return None;
         }
 
+        let needs_visible_rewrite = self.buffer != self.raw_buffer;
+
         self.is_foreign_mode = true;
         self.last_transform_key = None;
         self.last_w_transform_kind = WTransformKind::None;
         self.suppressed_transform_key = None;
 
-        let output_text = self.raw_buffer.iter().collect::<String>();
-        let delete_count = previous_buffer_count;
         self.buffer = self.raw_buffer.clone();
 
+        if !needs_visible_rewrite {
+            return None;
+        }
+
+        let output_text = self.raw_buffer.iter().collect::<String>();
         Some(KeyTransformAction {
-            delete_count,
+            delete_count: previous_buffer_count,
             text: output_text,
         })
     }
