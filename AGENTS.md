@@ -31,7 +31,7 @@ Fix any compilation errors before proceeding. Never leave the codebase in a brok
 
 When modifying Telex input rules or transformation logic in the implementation:
 
-1. **Update `TELEX_RULES.md`**: Document any new or changed rules, including:
+1. **Update `TELEX_RULES.md` and `VNI_RULES.md` **: Document any new or changed rules, including:
    - New transformation patterns
    - Modified behavior for existing rules
    - New examples showing the expected input/output
