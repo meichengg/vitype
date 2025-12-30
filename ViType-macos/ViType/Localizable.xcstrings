@@ -463,6 +463,40 @@
         }
       }
     },
+    "Play Sound on Toggle" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Play sound on toggle"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Phát âm thanh khi chuyển đổi"
+          }
+        }
+      }
+    },
+    "Play Sound on Toggle Help" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Play a sound when using the keyboard shortcut to toggle ViType."
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Phát âm thanh khi dùng phím tắt để bật/tắt ViType."
+          }
+        }
+      }
+    },
     "Previous app:" : {
       "extractionState" : "stale",
       "localizations" : {

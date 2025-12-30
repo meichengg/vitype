@@ -42,6 +42,7 @@ struct ContentView: View {
     @AppStorage(AppExclusion.shortcutOptionKey) private var shortcutOption = false
     @AppStorage(AppExclusion.shortcutControlKey) private var shortcutControl = true
     @AppStorage(AppExclusion.shortcutShiftKey) private var shortcutShift = false
+    @AppStorage(AppExclusion.playSoundOnToggleKey) private var playSoundOnToggle = true
 
     @StateObject private var frontmostAppMonitor = FrontmostAppMonitor()
 
@@ -81,7 +82,8 @@ struct ContentView: View {
                         shortcutControl: $shortcutControl,
                         shortcutShift: $shortcutShift,
                         inputMethod: $inputMethod,
-                        autoFixTone: $autoFixTone
+                        autoFixTone: $autoFixTone,
+                        playSoundOnToggle: $playSoundOnToggle
                     )
 
                 case .advanced:

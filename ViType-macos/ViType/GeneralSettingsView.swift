@@ -18,6 +18,7 @@ struct GeneralSettingsView: View {
     @Binding var shortcutShift: Bool
     @Binding var inputMethod: Int
     @Binding var autoFixTone: Bool
+    @Binding var playSoundOnToggle: Bool
 
     private var shortcutDisplayString: String {
         var parts: [String] = []
@@ -87,6 +88,15 @@ struct GeneralSettingsView: View {
                         .foregroundColor(.secondary)
                         .padding(.leading, 8)
                 }
+                
+                // Play sound on toggle
+                Toggle("Play Sound on Toggle".localized(), isOn: $playSoundOnToggle)
+                    .padding(.top, 4)
+                
+                Text("Play Sound on Toggle Help".localized())
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
             }
             .padding(.leading, 20)
 
@@ -130,7 +140,8 @@ struct GeneralSettingsView: View {
         shortcutControl: .constant(true),
         shortcutShift: .constant(false),
         inputMethod: .constant(0),
-        autoFixTone: .constant(true)
+        autoFixTone: .constant(true),
+        playSoundOnToggle: .constant(true)
     )
     .padding()
     .frame(width: 400, height: 300)
