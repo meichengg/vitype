@@ -8,6 +8,8 @@
 import SwiftUI
 
 struct GeneralSettingsView: View {
+    @StateObject private var localizationManager = LocalizationManager.shared
+    
     @Binding var viTypeEnabled: Bool
     @Binding var shortcutKey: String
     @Binding var shortcutCommand: Bool
@@ -24,7 +26,7 @@ struct GeneralSettingsView: View {
         if shortcutCommand { parts.append("\u{2318}") }
         if shortcutShift { parts.append("\u{21E7}") }
 
-        let keyDisplay = shortcutKey.lowercased() == "space" ? "Space" : shortcutKey.uppercased()
+        let keyDisplay = shortcutKey.lowercased() == "space" ? "Space".localized() : shortcutKey.uppercased()
         parts.append(keyDisplay)
 
         return parts.joined()
@@ -32,11 +34,23 @@ struct GeneralSettingsView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
+            // Language Selector
+            VStack(alignment: .leading, spacing: 4) {
+                Picker("Language:".localized(), selection: $localizationManager.currentLanguage) {
+                    ForEach(AppLanguage.allCases) { language in
+                        Text(language.displayName).tag(language)
+                    }
+                }
+                .pickerStyle(.menu)
+            }
+            
+            Divider()
+            
             // Enable ViType
             VStack(alignment: .leading, spacing: 4) {
-                Toggle("Enable ViType", isOn: $viTypeEnabled)
+                Toggle("Enable ViType".localized(), isOn: $viTypeEnabled)
 
-                Text("Toggle Vietnamese input on/off. When disabled, all keys pass through unchanged.")
+                Text("Enable ViType Help".localized())
                     .font(.caption)
                     .foregroundColor(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
@@ -44,24 +58,24 @@ struct GeneralSettingsView: View {
 
             // Keyboard shortcut settings
             VStack(alignment: .leading, spacing: 8) {
-                Text("Toggle Shortcut:")
+                Text("Toggle Shortcut:".localized())
                     .font(.caption)
                     .foregroundColor(.secondary)
 
                 HStack(spacing: 12) {
-                    Toggle("Control", isOn: $shortcutControl)
+                    Toggle("Control".localized(), isOn: $shortcutControl)
                         .toggleStyle(.checkbox)
-                    Toggle("Option", isOn: $shortcutOption)
+                    Toggle("Option".localized(), isOn: $shortcutOption)
                         .toggleStyle(.checkbox)
-                    Toggle("Command", isOn: $shortcutCommand)
+                    Toggle("Command".localized(), isOn: $shortcutCommand)
                         .toggleStyle(.checkbox)
-                    Toggle("Shift", isOn: $shortcutShift)
+                    Toggle("Shift".localized(), isOn: $shortcutShift)
                         .toggleStyle(.checkbox)
                 }
                 .font(.caption)
 
                 HStack(spacing: 8) {
-                    Text("Key:")
+                    Text("Key:".localized())
                         .font(.caption)
                         .foregroundColor(.secondary)
 
@@ -80,13 +94,13 @@ struct GeneralSettingsView: View {
 
             // Input Method
             VStack(alignment: .leading, spacing: 4) {
-                Picker("Input Method:", selection: $inputMethod) {
+                Picker("Input Method:".localized(), selection: $inputMethod) {
                     Text("Telex").tag(0)
                     Text("VNI").tag(1)
                 }
                 .pickerStyle(.menu)
 
-                Text("Choose Telex (letters) or VNI (numbers) for Vietnamese input.")
+                Text("Input Method Help".localized())
                     .font(.caption)
                     .foregroundColor(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
@@ -96,9 +110,9 @@ struct GeneralSettingsView: View {
 
             // Auto Fix Tone
             VStack(alignment: .leading, spacing: 4) {
-                Toggle("Auto Fix Tone", isOn: $autoFixTone)
+                Toggle("Auto Fix Tone".localized(), isOn: $autoFixTone)
 
-                Text("Automatically reposition tone marks when adding vowels.")
+                Text("Auto Fix Tone Help".localized())
                     .font(.caption)
                     .foregroundColor(.secondary)
                     .fixedSize(horizontal: false, vertical: true)

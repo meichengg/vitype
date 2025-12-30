@@ -8,6 +8,8 @@
 import SwiftUI
 
 struct AppExclusionView: View {
+    @StateObject private var localizationManager = LocalizationManager.shared
+    
     @Binding var appExclusionEnabled: Bool
     @Binding var excludedBundleIDsText: String
     
@@ -25,16 +27,16 @@ struct AppExclusionView: View {
     private var addButtonTitle: String {
         let viTypeBundleID = Bundle.main.bundleIdentifier?.lowercased()
         let current = frontmostAppMonitor.bundleIdentifier?.lowercased()
-        return current == viTypeBundleID ? "Add Previous App" : "Add Current App"
+        return current == viTypeBundleID ? "Add Previous App".localized() : "Add Current App".localized()
     }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             // App Exclusion Toggle
             VStack(alignment: .leading, spacing: 4) {
-                Toggle("App Exclusion", isOn: $appExclusionEnabled)
+                Toggle("App Exclusion Toggle".localized(), isOn: $appExclusionEnabled)
 
-                Text("Disable ViType when these apps are focused (bundle IDs, one per line or comma-separated):")
+                Text("Disable ViType when these apps are focused (bundle IDs, one per line or comma-separated):".localized())
                     .font(.caption)
                     .foregroundColor(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
@@ -54,22 +56,22 @@ struct AppExclusionView: View {
             HStack(alignment: .bottom, spacing: 12) {
                 VStack(alignment: .leading, spacing: 4) {
                     HStack(spacing: 8) {
-                        Text("Current app:")
+                        Text("Current app:".localized())
                             .font(.caption)
                             .foregroundColor(.secondary)
 
-                        Text(frontmostAppMonitor.bundleIdentifier ?? "Unknown")
+                        Text(frontmostAppMonitor.bundleIdentifier ?? "Unknown".localized())
                             .font(.caption)
                             .foregroundColor(.secondary)
                             .textSelection(.enabled)
                     }
 
                     HStack(spacing: 8) {
-                        Text("Previous app:")
+                        Text("Previous app:".localized())
                             .font(.caption)
                             .foregroundColor(.secondary)
 
-                        Text(frontmostAppMonitor.lastNonViTypeBundleIdentifier ?? "Unknown")
+                        Text(frontmostAppMonitor.lastNonViTypeBundleIdentifier ?? "Unknown".localized())
                             .font(.caption)
                             .foregroundColor(.secondary)
                             .textSelection(.enabled)

@@ -8,12 +8,24 @@
 import SwiftUI
 
 enum SettingsTab: String, CaseIterable {
-    case general = "General"
-    case advanced = "Advanced"
-    case appExclusion = "App Exclusion"
+    case general
+    case advanced
+    case appExclusion
+    
+    func localizedName() -> String {
+        switch self {
+        case .general:
+            return "General".localized()
+        case .advanced:
+            return "Advanced".localized()
+        case .appExclusion:
+            return "App Exclusion".localized()
+        }
+    }
 }
 
 struct ContentView: View {
+    @StateObject private var localizationManager = LocalizationManager.shared
     @State private var selectedTab: SettingsTab = .general
 
     @AppStorage("autoFixTone") private var autoFixTone = true
@@ -41,7 +53,7 @@ struct ContentView: View {
                     .font(.title)
                     .fontWeight(.bold)
 
-                Text("Vietnamese Input Method")
+                Text("Vietnamese Input Method".localized())
                     .font(.subheadline)
                     .foregroundColor(.secondary)
             }
@@ -49,7 +61,7 @@ struct ContentView: View {
             // Segmented control for tabs
             Picker("", selection: $selectedTab) {
                 ForEach(SettingsTab.allCases, id: \.self) { tab in
-                    Text(tab.rawValue).tag(tab)
+                    Text(tab.localizedName()).tag(tab)
                 }
             }
             .pickerStyle(.segmented)
@@ -90,6 +102,7 @@ struct ContentView: View {
         }
         .padding()
         .frame(width: 420)
+        .id(localizationManager.currentLanguage) // Force refresh when language changes
     }
 }
 
@@ -97,39 +110,45 @@ struct ContentView: View {
 struct ShortcutKeyField: View {
     @Binding var key: String
     @State private var displayText: String = ""
+    @StateObject private var localizationManager = LocalizationManager.shared
 
     var body: some View {
         TextField("", text: $displayText)
             .textFieldStyle(.roundedBorder)
             .onAppear {
-                displayText = key.lowercased() == "space" ? "Space" : key.uppercased()
+                displayText = key.lowercased() == "space" ? "Space".localized() : key.uppercased()
             }
             .onChange(of: displayText) { _, newValue in
                 processInput(newValue)
+            }
+            .onChange(of: localizationManager.currentLanguage) { _, _ in
+                // Update display when language changes
+                displayText = key.lowercased() == "space" ? "Space".localized() : key.uppercased()
             }
     }
 
     private func processInput(_ input: String) {
         let trimmed = input.trimmingCharacters(in: .whitespaces)
+        let spaceLocalized = "Space".localized()
 
-        // Check for "space" typed out
-        if trimmed.lowercased() == "space" {
+        // Check for "space" typed out (in either language)
+        if trimmed.lowercased() == "space" || trimmed == spaceLocalized {
             key = "space"
-            displayText = "Space"
+            displayText = spaceLocalized
             return
         }
 
         // If user types a space character
         if input.contains(" ") {
             key = "space"
-            displayText = "Space"
+            displayText = spaceLocalized
             return
         }
 
         // Take only the last character if multiple are entered
         guard let lastChar = trimmed.last else {
             // Empty input - reset to current key
-            displayText = key.lowercased() == "space" ? "Space" : key.uppercased()
+            displayText = key.lowercased() == "space" ? spaceLocalized : key.uppercased()
             return
         }
 
@@ -142,7 +161,7 @@ struct ShortcutKeyField: View {
             displayText = char.uppercased()
         } else {
             // Invalid character - reset to current key
-            displayText = key.lowercased() == "space" ? "Space" : key.uppercased()
+            displayText = key.lowercased() == "space" ? spaceLocalized : key.uppercased()
         }
     }
 }

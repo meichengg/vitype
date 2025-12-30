@@ -8,6 +8,8 @@
 import SwiftUI
 
 struct AdvancedSettingsView: View {
+    @StateObject private var localizationManager = LocalizationManager.shared
+    
     @Binding var outputEncoding: Int
     @Binding var useAXGhostSuggestion: Bool
 
@@ -15,13 +17,13 @@ struct AdvancedSettingsView: View {
         VStack(alignment: .leading, spacing: 14) {
             // Character Encoding
             VStack(alignment: .leading, spacing: 4) {
-                Picker("Character Encoding:", selection: $outputEncoding) {
-                    Text("Unicode").tag(0)
-                    Text("Composite Unicode").tag(1)
+                Picker("Character Encoding:".localized(), selection: $outputEncoding) {
+                    Text("Unicode".localized()).tag(0)
+                    Text("Composite Unicode".localized()).tag(1)
                 }
                 .pickerStyle(.menu)
 
-                Text("Unicode uses precomposed characters (default). Composite Unicode uses decomposed characters (NFD).")
+                Text("Character Encoding Help".localized())
                     .font(.caption)
                     .foregroundColor(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
@@ -31,9 +33,9 @@ struct AdvancedSettingsView: View {
 
             // Accessibility API
             VStack(alignment: .leading, spacing: 4) {
-                Toggle("Use Accessibility API", isOn: $useAXGhostSuggestion)
+                Toggle("Use Accessibility API".localized(), isOn: $useAXGhostSuggestion)
 
-                Text("Enable AX-based detection to avoid browser suggestion conflicts.")
+                Text("Use Accessibility API Help".localized())
                     .font(.caption)
                     .foregroundColor(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
