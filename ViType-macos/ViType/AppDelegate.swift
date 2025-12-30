@@ -12,6 +12,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var runLoopSource: CFRunLoopSource?
     private var transformer = KeyTransformer()
     private let injectedEventTag: Int64 = 0x11EE22DD
+    
+    private var isInjectingReplacement: Bool = false
+    private var pendingInjectedKeyDownCount: Int = 0
+    private var queuedKeyDownEvents: [QueuedKeyDownEvent] = []
+    private var flushQueuedEventsScheduled: Bool = false
 
     private var frontmostBundleID: String?
     private var excludedBundleIDs: Set<String> = []
@@ -284,6 +289,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 }
 
 extension AppDelegate {
+    private struct QueuedKeyDownEvent {
+        let keyCode: Int64
+        let flags: CGEventFlags
+        let unicodeString: String?
+    }
+    
     // Key codes for navigation and special keys
     private static let backspaceKey: Int64 = 51
     private static let forwardDeleteKey: Int64 = 117
@@ -323,7 +334,13 @@ extension AppDelegate {
     func handle(event: CGEvent) -> Bool {
         // Skip injected events
         if event.getIntegerValueField(.eventSourceUserData) == injectedEventTag {
+            noteInjectedKeyDown()
             return false
+        }
+        
+        if isInjectingReplacement {
+            enqueueKeyDownEvent(event)
+            return true
         }
 
         let keyCode = event.getIntegerValueField(.keyboardEventKeycode)
@@ -375,11 +392,116 @@ extension AppDelegate {
     }
 
     private func replace(last count: Int, with text: String, extraDeleteCount: Int) {
+        beginReplacementInjection(backspaceCount: extraDeleteCount + count)
         if extraDeleteCount > 0 {
             for _ in 0..<extraDeleteCount { sendKey(CGKeyCode(Self.backspaceKey)) }
         }
         for _ in 0..<count { sendKey(CGKeyCode(Self.backspaceKey)) }
         sendText(text)
+    }
+    
+    private func enqueueKeyDownEvent(_ event: CGEvent) {
+        let keyCode = event.getIntegerValueField(.keyboardEventKeycode)
+        queuedKeyDownEvents.append(
+            QueuedKeyDownEvent(
+                keyCode: keyCode,
+                flags: event.flags,
+                unicodeString: event.keyboardGetUnicodeString()
+            )
+        )
+        
+        if queuedKeyDownEvents.count > 128 {
+            queuedKeyDownEvents.removeAll(keepingCapacity: true)
+            isInjectingReplacement = false
+            pendingInjectedKeyDownCount = 0
+            transformer.reset()
+        }
+    }
+    
+    private func beginReplacementInjection(backspaceCount: Int) {
+        isInjectingReplacement = true
+        pendingInjectedKeyDownCount = max(0, backspaceCount) + 1
+    }
+    
+    private func noteInjectedKeyDown() {
+        guard isInjectingReplacement else { return }
+        if pendingInjectedKeyDownCount > 0 {
+            pendingInjectedKeyDownCount -= 1
+        }
+        if pendingInjectedKeyDownCount == 0 {
+            isInjectingReplacement = false
+            scheduleFlushQueuedEvents()
+        }
+    }
+    
+    private func scheduleFlushQueuedEvents() {
+        guard !flushQueuedEventsScheduled else { return }
+        flushQueuedEventsScheduled = true
+        DispatchQueue.main.async { [weak self] in
+            guard let self else { return }
+            self.flushQueuedEventsScheduled = false
+            self.flushQueuedKeyDownEvents()
+        }
+    }
+    
+    private func flushQueuedKeyDownEvents() {
+        while !isInjectingReplacement && !queuedKeyDownEvents.isEmpty {
+            let next = queuedKeyDownEvents.removeFirst()
+            replayQueuedKeyDown(next)
+        }
+    }
+    
+    private func replayQueuedKeyDown(_ queued: QueuedKeyDownEvent) {
+        let keyCode = queued.keyCode
+        let flags = queued.flags
+        
+        if isToggleShortcut(keyCode: keyCode, flags: flags) {
+            toggleViType()
+            return
+        }
+        
+        if shouldBypassVietnameseInput() {
+            transformer.reset()
+            if let s = queued.unicodeString {
+                sendText(s)
+            } else {
+                sendKey(CGKeyCode(keyCode))
+            }
+            return
+        }
+        
+        let hasActionModifier = flags.contains(.maskCommand) ||
+                                flags.contains(.maskControl) ||
+                                flags.contains(.maskAlternate)
+        
+        if keyCode == Self.backspaceKey && !hasActionModifier {
+            transformer.deleteLastCharacter()
+            sendKey(CGKeyCode(Self.backspaceKey))
+            return
+        }
+        
+        if keyCode == Self.forwardDeleteKey ||
+           keyCode == Self.escapeKey ||
+           Self.navigationKeys.contains(keyCode) ||
+           hasActionModifier {
+            transformer.reset()
+            sendKey(CGKeyCode(keyCode))
+            return
+        }
+        
+        guard let s = queued.unicodeString else {
+            sendKey(CGKeyCode(keyCode))
+            return
+        }
+        
+        refreshTransformerSettings()
+        
+        if let action = transformer.process(input: s) {
+            let extraDeleteCount = shouldWipeGhostSuggestion() ? 1 : 0
+            replace(last: action.deleteCount, with: action.text, extraDeleteCount: extraDeleteCount)
+        } else {
+            sendText(s)
+        }
     }
 
     private func sendKey(_ key: CGKeyCode) {
