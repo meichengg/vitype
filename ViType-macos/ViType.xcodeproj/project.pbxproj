@@ -78,6 +78,7 @@
 				43305C2C2EFE2A37006B7133 /* Sources */,
 				43305C2D2EFE2A37006B7133 /* Frameworks */,
 				43305C2E2EFE2A37006B7133 /* Resources */,
+				43305C5A2EFE2A38006B7133 /* Set Version from Git */,
 			);
 			buildRules = (
 			);
@@ -141,6 +142,21 @@
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXShellScriptBuildPhase section */
+		43305C5A2EFE2A38006B7133 /* Set Version from Git */ = {
+			isa = PBXShellScriptBuildPhase;
+			alwaysOutOfDate = 1;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputPaths = (
+			);
+			name = "Set Version from Git";
+			outputPaths = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/bash;
+			shellScript = "#!/bin/bash\n# Automatic versioning from git tags\nset -e\n\n# Get version from git tag (fallback to 0.0.1)\nGIT_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo \"0.0.1\")\nVERSION=\"${GIT_TAG#v}\"\n\n# Get commit count since last tag + 1 (so exact tag = build 1)\nCOMMITS_SINCE_TAG=$(git rev-list \"${GIT_TAG}\"..HEAD --count 2>/dev/null || echo \"0\")\nBUILD_NUMBER=$((COMMITS_SINCE_TAG + 1))\n\n# If no tags exist, use total commit count\nif [ \"$GIT_TAG\" = \"0.0.1\" ]; then\n    BUILD_NUMBER=$(git rev-list HEAD --count 2>/dev/null || echo \"1\")\nfi\n\n# Update Info.plist in build output\nPLIST=\"${TARGET_BUILD_DIR}/${INFOPLIST_PATH}\"\nif [ -f \"$PLIST\" ]; then\n    /usr/libexec/PlistBuddy -c \"Set :CFBundleShortVersionString ${VERSION}\" \"$PLIST\"\n    /usr/libexec/PlistBuddy -c \"Set :CFBundleVersion ${BUILD_NUMBER}\" \"$PLIST\"\n    echo \"ViType: Version ${VERSION} (Build ${BUILD_NUMBER})\"\nelse\n    echo \"warning: Info.plist not found at ${PLIST}, skipping version injection\"\nfi\n";
+		};
 		7F1A3D922F2F6A2B00112233 /* Build Rust Core */ = {
 			isa = PBXShellScriptBuildPhase;
 			alwaysOutOfDate = 1;
@@ -307,7 +323,7 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 3;
+				CURRENT_PROJECT_VERSION = 4;
 				ENABLE_APP_SANDBOX = NO;
 				ENABLE_PREVIEWS = YES;
 				ENABLE_USER_SCRIPT_SANDBOXING = NO;
@@ -327,7 +343,7 @@
 					"$(PROJECT_DIR)",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 14.6;
-				MARKETING_VERSION = 1.3;
+				MARKETING_VERSION = 1.4;
 				OTHER_LDFLAGS = "$(inherited)";
 				PRODUCT_BUNDLE_IDENTIFIER = com.dat.ViType;
 				PRODUCT_NAME = "$(TARGET_NAME)";
@@ -350,7 +366,7 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 3;
+				CURRENT_PROJECT_VERSION = 4;
 				ENABLE_APP_SANDBOX = NO;
 				ENABLE_PREVIEWS = YES;
 				ENABLE_USER_SCRIPT_SANDBOXING = NO;
@@ -370,7 +386,7 @@
 					"$(PROJECT_DIR)",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 14.6;
-				MARKETING_VERSION = 1.3;
+				MARKETING_VERSION = 1.4;
 				OTHER_LDFLAGS = "$(inherited)";
 				PRODUCT_BUNDLE_IDENTIFIER = com.dat.ViType;
 				PRODUCT_NAME = "$(TARGET_NAME)";
