@@ -35,6 +35,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var toggleSound: NSSound?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        // This is a menu-bar app by default; hide it from the Dock unless a window is explicitly shown.
+        NSApp.setActivationPolicy(.accessory)
+
         // Register default values
         UserDefaults.standard.register(defaults: [
             "autoFixTone": true,
@@ -87,31 +90,32 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
     
     @objc private func showSettingsWindow() {
-        // Show app in Dock temporarily while settings window is open
-        NSApp.setActivationPolicy(.regular)
-        
-        // Use WindowManager to open the settings window via SwiftUI
         Task { @MainActor in
-            WindowManager.shared.openSettings()
-            
-            // Wait a moment for the window to be created, then observe it
-            try? await Task.sleep(nanoseconds: 100_000_000) // 0.1 seconds
-            
-            // Find and observe the settings window for close events
-            for window in NSApp.windows {
-                if window is NSPanel { continue }
-                if window.className.contains("StatusBar") { continue }
-                if window.level == .statusBar { continue }
-                
-                if window.contentView != nil && window.isVisible {
-                    self.observeWindowClose(window)
-                    break
-                }
+            // Show app in Dock temporarily while settings window is open
+            NSApp.setActivationPolicy(.regular)
+            NSApp.activate(ignoringOtherApps: true)
+
+            let window = WindowManager.shared.openSettings()
+
+            // SwiftUI's `openWindow` can create the window asynchronously; wait briefly then try again.
+            if window == nil {
+                try? await Task.sleep(nanoseconds: 150_000_000) // 0.15s
+            }
+
+            let settingsWindow = window ?? NSApp.windows.first(where: { candidate in
+                if candidate is NSPanel { return false }
+                if candidate.className.contains("StatusBar") { return false }
+                if candidate.level == .statusBar { return false }
+                return candidate.contentView != nil
+            })
+
+            settingsWindow?.makeKeyAndOrderFront(nil)
+            settingsWindow?.orderFrontRegardless()
+
+            if let settingsWindow {
+                self.observeWindowClose(settingsWindow)
             }
         }
-        
-        // Activate the app to bring it to front
-        NSApp.activate(ignoringOtherApps: true)
     }
     
     private func observeWindowClose(_ window: NSWindow) {

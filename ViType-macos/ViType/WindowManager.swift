@@ -5,6 +5,7 @@
 //  Created by Tran Dat on 27/12/25.
 //
 
+import Cocoa
 import SwiftUI
 
 /// Singleton that bridges AppKit (AppDelegate/MenuBarManager) with SwiftUI's window management.
@@ -13,6 +14,8 @@ final class WindowManager {
     static let shared = WindowManager()
     
     private var openWindowAction: OpenWindowAction?
+    private weak var settingsWindow: NSWindow?
+    private var settingsWindowCloseObserver: NSObjectProtocol?
     
     private init() {}
     
@@ -23,9 +26,90 @@ final class WindowManager {
     }
     
     /// Opens the settings window. Can be called from AppDelegate or MenuBarManager.
+    /// Returns the NSWindow when available (AppKit fallback always returns one).
     @MainActor
-    func openSettings() {
-        openWindowAction?(id: "settings")
+    @discardableResult
+    func openSettings() -> NSWindow? {
+        if let existing = findSettingsWindow() {
+            existing.makeKeyAndOrderFront(nil)
+            return existing
+        }
+
+        if let openWindowAction {
+            openWindowAction(id: "settings")
+            return findSettingsWindow()
+        }
+
+        return openSettingsViaAppKitFallback()
+    }
+
+    @MainActor
+    private func findSettingsWindow() -> NSWindow? {
+        if let settingsWindow {
+            return settingsWindow
+        }
+
+        // Best-effort: SwiftUI-created window should be among NSApp.windows.
+        // Filter out status bar panels and transient panels.
+        let candidates = NSApp.windows.filter { window in
+            if window is NSPanel { return false }
+            if window.className.contains("StatusBar") { return false }
+            if window.level == .statusBar { return false }
+            return window.contentView != nil
+        }
+
+        // Prefer visible windows, then those with "ViType" in the title.
+        let sorted = candidates.sorted { lhs, rhs in
+            if lhs.isVisible != rhs.isVisible { return lhs.isVisible }
+            let lhsScore = lhs.title.localizedCaseInsensitiveContains("ViType") ? 1 : 0
+            let rhsScore = rhs.title.localizedCaseInsensitiveContains("ViType") ? 1 : 0
+            return lhsScore > rhsScore
+        }
+
+        if let found = sorted.first {
+            settingsWindow = found
+            startObservingSettingsWindowClose(found)
+            return found
+        }
+
+        return nil
+    }
+
+    @MainActor
+    private func openSettingsViaAppKitFallback() -> NSWindow {
+        let hostingController = NSHostingController(rootView: ContentView())
+
+        let window = NSWindow(contentViewController: hostingController)
+        window.title = "ViType Settings".localized()
+        window.styleMask = [.titled, .closable, .miniaturizable]
+        window.isReleasedWhenClosed = false
+        window.setContentSize(NSSize(width: 440, height: 560))
+        window.center()
+        window.makeKeyAndOrderFront(nil)
+
+        settingsWindow = window
+        startObservingSettingsWindowClose(window)
+
+        return window
+    }
+
+    @MainActor
+    private func startObservingSettingsWindowClose(_ window: NSWindow) {
+        if let settingsWindowCloseObserver {
+            NotificationCenter.default.removeObserver(settingsWindowCloseObserver)
+        }
+
+        settingsWindowCloseObserver = NotificationCenter.default.addObserver(
+            forName: NSWindow.willCloseNotification,
+            object: window,
+            queue: .main
+        ) { [weak self] _ in
+            self?.settingsWindow = nil
+            if let observer = self?.settingsWindowCloseObserver {
+                NotificationCenter.default.removeObserver(observer)
+            }
+            self?.settingsWindowCloseObserver = nil
+        }
     }
 }
 
