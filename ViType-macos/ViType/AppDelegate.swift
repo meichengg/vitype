@@ -95,26 +95,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             NSApp.setActivationPolicy(.regular)
             NSApp.activate(ignoringOtherApps: true)
 
-            let window = WindowManager.shared.openSettings()
-
-            // SwiftUI's `openWindow` can create the window asynchronously; wait briefly then try again.
-            if window == nil {
-                try? await Task.sleep(nanoseconds: 150_000_000) // 0.15s
-            }
-
-            let settingsWindow = window ?? NSApp.windows.first(where: { candidate in
-                if candidate is NSPanel { return false }
-                if candidate.className.contains("StatusBar") { return false }
-                if candidate.level == .statusBar { return false }
-                return candidate.contentView != nil
-            })
-
-            settingsWindow?.makeKeyAndOrderFront(nil)
-            settingsWindow?.orderFrontRegardless()
-
-            if let settingsWindow {
-                self.observeWindowClose(settingsWindow)
-            }
+            let settingsWindow = await WindowManager.shared.openSettings()
+            self.observeWindowClose(settingsWindow)
         }
     }
     

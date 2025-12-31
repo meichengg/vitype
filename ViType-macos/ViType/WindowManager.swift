@@ -26,21 +26,29 @@ final class WindowManager {
     }
     
     /// Opens the settings window. Can be called from AppDelegate or MenuBarManager.
-    /// Returns the NSWindow when available (AppKit fallback always returns one).
+    /// Always returns an NSWindow (SwiftUI window when available; otherwise AppKit fallback).
     @MainActor
     @discardableResult
-    func openSettings() -> NSWindow? {
+    func openSettings() async -> NSWindow {
         if let existing = findSettingsWindow() {
-            existing.makeKeyAndOrderFront(nil)
+            present(existing)
             return existing
         }
 
         if let openWindowAction {
             openWindowAction(id: "settings")
-            return findSettingsWindow()
+
+            if let created = await waitForSettingsWindow(timeoutSeconds: 1.0) {
+                settingsWindow = created
+                startObservingSettingsWindowClose(created)
+                present(created)
+                return created
+            }
         }
 
-        return openSettingsViaAppKitFallback()
+        let fallback = openSettingsViaAppKitFallback()
+        present(fallback)
+        return fallback
     }
 
     @MainActor
@@ -55,7 +63,7 @@ final class WindowManager {
             if window is NSPanel { return false }
             if window.className.contains("StatusBar") { return false }
             if window.level == .statusBar { return false }
-            return window.contentView != nil
+            return true
         }
 
         // Prefer visible windows, then those with "ViType" in the title.
@@ -76,6 +84,18 @@ final class WindowManager {
     }
 
     @MainActor
+    private func waitForSettingsWindow(timeoutSeconds: TimeInterval) async -> NSWindow? {
+        let start = Date()
+        while Date().timeIntervalSince(start) < timeoutSeconds {
+            if let found = findSettingsWindow() {
+                return found
+            }
+            try? await Task.sleep(nanoseconds: 50_000_000) // 50ms
+        }
+        return nil
+    }
+
+    @MainActor
     private func openSettingsViaAppKitFallback() -> NSWindow {
         let hostingController = NSHostingController(rootView: ContentView())
 
@@ -91,6 +111,15 @@ final class WindowManager {
         startObservingSettingsWindowClose(window)
 
         return window
+    }
+
+    @MainActor
+    private func present(_ window: NSWindow) {
+        if window.isMiniaturized {
+            window.deminiaturize(nil)
+        }
+        window.makeKeyAndOrderFront(nil)
+        window.orderFrontRegardless()
     }
 
     @MainActor
