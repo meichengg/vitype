@@ -599,6 +599,23 @@
         }
       }
     },
+    "Start at Login Help" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Automatically launch ViType when you log in to your Mac."
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tự động khởi chạy ViType khi bạn đăng nhập vào máy Mac."
+          }
+        }
+      }
+    },
     "Switch to English" : {
       "extractionState" : "stale",
       "localizations" : {

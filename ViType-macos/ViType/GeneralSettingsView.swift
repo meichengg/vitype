@@ -127,6 +127,34 @@ struct GeneralSettingsView: View {
                     .foregroundColor(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
             }
+
+            Divider()
+
+            // Start at Login
+            VStack(alignment: .leading, spacing: 4) {
+                Toggle("Start at Login".localized(), isOn: Binding(
+                    get: { LaunchAtLoginManager.isOnForToggle },
+                    set: { newValue in
+                        do {
+                            try LaunchAtLoginManager.setOn(newValue)
+                        } catch {
+                            // Error handling is done via the warning text below
+                        }
+                    }
+                ))
+
+                if LaunchAtLoginManager.state == .requiresApproval {
+                    Text("Approval required in System Settings…".localized())
+                        .font(.caption)
+                        .foregroundColor(.orange)
+                        .fixedSize(horizontal: false, vertical: true)
+                } else {
+                    Text("Start at Login Help".localized())
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
         }
     }
 }
