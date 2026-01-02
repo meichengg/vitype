@@ -6,6 +6,7 @@
 //
 
 import Cocoa
+import Carbon
 
 final class AppDelegate: NSObject, NSApplicationDelegate {
     private var keyTap: CFMachPort?
@@ -22,6 +23,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var excludedBundleIDs: Set<String> = []
     private var appActivationObserver: NSObjectProtocol?
     private var userDefaultsObserver: NSObjectProtocol?
+    
+    // Unsupported input sources that should bypass Vietnamese transformation
+    private let unsupportedInputSources: Set<String> = [
+        "com.apple.inputmethod.SCIM.ITABC",           // Pinyin - Simplified
+        "com.apple.inputmethod.TCIM.Pinyin",          // Pinyin - Traditional
+        "com.apple.inputmethod.Korean",               // Korean
+        "com.apple.inputmethod.Japanese",             // Japanese
+        "com.apple.inputmethod.TCIM.Cangjie",         // Cangjie
+        "com.apple.inputmethod.TCIM.Shuangpin",       // Shuangpin
+        "com.apple.inputmethod.SCIM.Shuangpin",       // Shuangpin (Simplified)
+    ]
 
     private var menuBarManager: MenuBarManager?
     private var settingsWindowObserver: NSObjectProtocol?
@@ -143,7 +155,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
         NotificationCenter.default.removeObserver(self)
     }
-
     private func startKeyTap() {
         let mask = CGEventMask(1 << CGEventType.keyDown.rawValue)
 
@@ -244,6 +255,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private func shouldBypassVietnameseInput() -> Bool {
         // Check global enable toggle first
         guard UserDefaults.standard.bool(forKey: AppExclusion.viTypeEnabledKey) else { return true }
+        
+        // Check if current input source is unsupported (e.g., Pinyin, Korean, Japanese)
+        if isUnsupportedInputSource() {
+            return true
+        }
 
         // Then check app exclusion
         guard UserDefaults.standard.bool(forKey: AppExclusion.isEnabledKey) else { return false }
@@ -272,6 +288,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             toggleSound = NSSound(named: NSSound.Name(soundName))
             toggleSound?.play()
         }
+    }
+    
+    private func isUnsupportedInputSource() -> Bool {
+        guard let currentInputSourceID = getCurrentInputSourceID() else { return false }
+        return unsupportedInputSources.contains(currentInputSourceID)
+    }
+    
+    private func getCurrentInputSourceID() -> String? {
+        let currentSource = TISCopyCurrentKeyboardInputSource().takeRetainedValue()
+        guard let sourceID = TISGetInputSourceProperty(currentSource, kTISPropertyInputSourceID) else {
+            return nil
+        }
+        return Unmanaged<CFString>.fromOpaque(sourceID).takeUnretainedValue() as String
     }
 }
 
