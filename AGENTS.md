@@ -8,7 +8,7 @@ cargo test test_name_substring     # Filter tests by name substring
 ```
 
 ## Build Verification
-After modifying code, always run a build to check for compile errors (do not ask for confirmation):
+After modifying code, always run a build to check for compile errors:
 ```bash
 cargo build
 ```
