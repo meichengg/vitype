@@ -18,6 +18,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var pendingInjectedKeyDownCount: Int = 0
     private var queuedKeyDownEvents: [QueuedKeyDownEvent] = []
     private var flushQueuedEventsScheduled: Bool = false
+    private var lastFocusedElement: AXUIElement?
 
     private var frontmostBundleID: String?
     private var excludedBundleIDs: Set<String> = []
@@ -202,6 +203,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             let app = notification.userInfo?[NSWorkspace.applicationUserInfoKey] as? NSRunningApplication
             frontmostBundleID = app?.bundleIdentifier ?? NSWorkspace.shared.frontmostApplication?.bundleIdentifier
             transformer.reset()
+            lastFocusedElement = nil
         }
 
         userDefaultsObserver = NotificationCenter.default.addObserver(
@@ -418,6 +420,8 @@ extension AppDelegate {
             noteInjectedKeyDown()
             return false
         }
+
+        resetStateIfFocusedElementChanged()
         
         if isInjectingReplacement {
             enqueueKeyDownEvent(event)
@@ -470,6 +474,37 @@ extension AppDelegate {
             return true
         }
         return false
+    }
+
+    private func resetStateIfFocusedElementChanged() {
+        guard AXIsProcessTrusted() else { return }
+
+        let current: AXUIElement? = {
+            if Thread.isMainThread {
+                return focusedElement()
+            }
+            return DispatchQueue.main.sync { [weak self] in
+                self?.focusedElement()
+            }
+        }()
+
+        guard let current else {
+            if lastFocusedElement != nil {
+                transformer.reset()
+            }
+            lastFocusedElement = nil
+            return
+        }
+
+        guard let lastFocusedElement else {
+            self.lastFocusedElement = current
+            return
+        }
+
+        guard !CFEqual(lastFocusedElement, current) else { return }
+
+        self.lastFocusedElement = current
+        transformer.reset()
     }
 
     private func replace(last count: Int, with text: String, extraDeleteCount: Int) {
