@@ -59,6 +59,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             "autoFixTone": true,
             "inputMethod": 0, // 0 = Telex, 1 = VNI
             "outputEncoding": 0,
+            "tonePlacement": 0, // 0 = Orthographic, 1 = NucleusOnly
             AppExclusion.isEnabledKey: true,
             AppExclusion.excludedBundleIDsKey: "",
             AppExclusion.viTypeEnabledKey: true,
@@ -262,6 +263,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         let encodingValue = UserDefaults.standard.integer(forKey: "outputEncoding")
         transformer.outputEncoding = OutputEncoding(rawValue: Int32(encodingValue)) ?? .unicode
+
+        let tonePlacementValue = UserDefaults.standard.integer(forKey: "tonePlacement")
+        transformer.tonePlacement = TonePlacement(rawValue: Int32(tonePlacementValue)) ?? .orthographic
     }
 
     private func refreshFrontmostBundleID() {

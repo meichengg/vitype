@@ -31,6 +31,7 @@ struct ContentView: View {
     @AppStorage("autoFixTone") private var autoFixTone = true
     @AppStorage("inputMethod") private var inputMethod = 0
     @AppStorage("outputEncoding") private var outputEncoding = 0
+    @AppStorage("tonePlacement") private var tonePlacement = 0
     @AppStorage(AppExclusion.isEnabledKey) private var appExclusionEnabled = true
     @AppStorage(AppExclusion.excludedBundleIDsKey) private var excludedBundleIDsText = ""
     @AppStorage(AppExclusion.viTypeEnabledKey) private var viTypeEnabled = true
@@ -82,6 +83,7 @@ struct ContentView: View {
                         shortcutControl: $shortcutControl,
                         shortcutShift: $shortcutShift,
                         inputMethod: $inputMethod,
+                        tonePlacement: $tonePlacement,
                         autoFixTone: $autoFixTone,
                         playSoundOnToggle: $playSoundOnToggle
                     )

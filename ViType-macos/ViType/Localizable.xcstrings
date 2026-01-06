@@ -412,6 +412,74 @@
         }
       }
     },
+    "Nucleus Only" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nucleus Only"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Chỉ đặt trên âm chính"
+          }
+        }
+      }
+    },
+    "Orthographic" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Orthographic"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Theo chính tả"
+          }
+        }
+      }
+    },
+    "Tone Placement Help" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Choose how tone marks are placed in vowel clusters (e.g., hóa vs hoá; úy vs uý)."
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Chọn cách đặt dấu trong cụm nguyên âm (ví dụ: hóa vs hoá; úy vs uý)."
+          }
+        }
+      }
+    },
+    "Tone Placement:" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tone Placement:"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Vị trí dấu:"
+          }
+        }
+      }
+    },
     "Key:" : {
       "extractionState" : "stale",
       "localizations" : {

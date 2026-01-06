@@ -22,6 +22,11 @@ enum OutputEncoding: Int32 {
     case compositeUnicode = 1
 }
 
+enum TonePlacement: Int32 {
+    case orthographic = 0
+    case nucleusOnly = 1
+}
+
 final class KeyTransformer {
     private var engine: OpaquePointer?
 
@@ -52,12 +57,24 @@ final class KeyTransformer {
         }
     }
 
+    var tonePlacement: TonePlacement = .orthographic {
+        didSet {
+            guard tonePlacement != oldValue else { return }
+            if let engine {
+                vitype_engine_set_tone_placement(engine, tonePlacement.rawValue)
+                // Changing tone placement rules should clear the buffer to avoid mixed behavior mid-word.
+                vitype_engine_reset(engine)
+            }
+        }
+    }
+
     init() {
         engine = vitype_engine_new()
         if let engine {
             vitype_engine_set_input_method(engine, inputMethod.rawValue)
             vitype_engine_set_auto_fix_tone(engine, autoFixTone)
             vitype_engine_set_output_encoding(engine, outputEncoding.rawValue)
+            vitype_engine_set_tone_placement(engine, tonePlacement.rawValue)
         }
     }
 

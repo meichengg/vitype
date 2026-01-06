@@ -17,6 +17,7 @@ struct GeneralSettingsView: View {
     @Binding var shortcutControl: Bool
     @Binding var shortcutShift: Bool
     @Binding var inputMethod: Int
+    @Binding var tonePlacement: Int
     @Binding var autoFixTone: Bool
     @Binding var playSoundOnToggle: Bool
 
@@ -118,6 +119,22 @@ struct GeneralSettingsView: View {
 
             Divider()
 
+            // Tone Placement
+            VStack(alignment: .leading, spacing: 4) {
+                Picker("Tone Placement:".localized(), selection: $tonePlacement) {
+                    Text("Orthographic".localized()).tag(0)
+                    Text("Nucleus Only".localized()).tag(1)
+                }
+                .pickerStyle(.menu)
+
+                Text("Tone Placement Help".localized())
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
+            Divider()
+
             // Auto Fix Tone
             VStack(alignment: .leading, spacing: 4) {
                 Toggle("Auto Fix Tone".localized(), isOn: $autoFixTone)
@@ -168,6 +185,7 @@ struct GeneralSettingsView: View {
         shortcutControl: .constant(true),
         shortcutShift: .constant(false),
         inputMethod: .constant(0),
+        tonePlacement: .constant(0),
         autoFixTone: .constant(true),
         playSoundOnToggle: .constant(true)
     )
