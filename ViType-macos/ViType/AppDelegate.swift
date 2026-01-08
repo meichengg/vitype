@@ -7,8 +7,21 @@
 
 import Cocoa
 import Carbon
+import Sparkle
 
 final class AppDelegate: NSObject, NSApplicationDelegate {
+    // Sparkle updater controller for automatic updates
+    let updaterController: SPUStandardUpdaterController
+    
+    override init() {
+        updaterController = SPUStandardUpdaterController(
+            startingUpdater: true,
+            updaterDelegate: nil,
+            userDriverDelegate: nil
+        )
+        super.init()
+    }
+    
     private var keyTap: CFMachPort?
     private var runLoopSource: CFRunLoopSource?
     private var transformer = KeyTransformer()
@@ -80,8 +93,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         startInputSourceObservers()
         startKeyTap()
 
-        // Initialize menu bar
-        menuBarManager = MenuBarManager()
+        // Initialize menu bar with Sparkle updater
+        menuBarManager = MenuBarManager(updaterController: updaterController)
         
         // Listen for settings window requests
         NotificationCenter.default.addObserver(

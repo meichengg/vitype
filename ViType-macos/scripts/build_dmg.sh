@@ -138,3 +138,48 @@ hdiutil create \
 
 echo "Created DMG: ${DMG_PATH}"
 
+# Generate EdDSA signature for Sparkle updates
+echo ""
+echo "=== Sparkle EdDSA Signing ==="
+
+SPARKLE_SIGN=""
+# Try to find sign_update in DerivedData (from SPM build)
+if [ -d "${DERIVED_DATA}/SourcePackages/artifacts/sparkle/Sparkle/bin" ]; then
+    SPARKLE_SIGN="${DERIVED_DATA}/SourcePackages/artifacts/sparkle/Sparkle/bin/sign_update"
+fi
+
+# Fallback: search in common DerivedData locations
+if [ ! -x "${SPARKLE_SIGN}" ]; then
+    SPARKLE_SIGN=$(find ~/Library/Developer/Xcode/DerivedData -name "sign_update" -type f 2>/dev/null | head -1)
+fi
+
+if [ -x "${SPARKLE_SIGN}" ]; then
+    echo "Using sign_update: ${SPARKLE_SIGN}"
+    EDDSA_OUTPUT=$("${SPARKLE_SIGN}" "${DMG_PATH}" 2>&1 || true)
+    if [ -n "${EDDSA_OUTPUT}" ]; then
+        echo ""
+        echo "EdDSA Signature Info:"
+        echo "${EDDSA_OUTPUT}"
+        echo ""
+        # Extract just the signature value for appcast.xml
+        EDDSA_SIG=$(echo "${EDDSA_OUTPUT}" | grep -o 'sparkle:edSignature="[^"]*"' | sed 's/sparkle:edSignature="//;s/"$//' || true)
+        if [ -n "${EDDSA_SIG}" ]; then
+            echo "sparkle:edSignature value: ${EDDSA_SIG}"
+        fi
+        echo ""
+        echo "DMG file size (bytes) for appcast.xml length attribute:"
+        stat -f%z "${DMG_PATH}"
+        # Save signature info to file for reference
+        echo "${EDDSA_OUTPUT}" > "${DMG_PATH}.eddsa"
+        echo ""
+        echo "Signature info saved to: ${DMG_PATH}.eddsa"
+    else
+        echo "warning: Failed to generate EdDSA signature. Is the private key in Keychain?"
+        echo "         Run 'generate_keys' from Sparkle to create keys if needed."
+    fi
+else
+    echo "note: Sparkle sign_update tool not found."
+    echo "      Build the project in Xcode first to download Sparkle via SPM."
+    echo "      Then re-run this script to generate the EdDSA signature."
+fi
+

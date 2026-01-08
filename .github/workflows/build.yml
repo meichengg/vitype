@@ -139,12 +139,111 @@ jobs:
             -ov -format UDZO \
             ViType.dmg
 
+      - name: Sign DMG for Sparkle auto-update
+        id: sparkle_sign
+        env:
+          SPARKLE_PRIVATE_KEY: ${{ secrets.SPARKLE_PRIVATE_KEY }}
+        run: |
+          # Get version info from the app
+          VERSION=$(/usr/libexec/PlistBuddy -c "Print :CFBundleShortVersionString" "ViType.app/Contents/Info.plist")
+          BUILD=$(/usr/libexec/PlistBuddy -c "Print :CFBundleVersion" "ViType.app/Contents/Info.plist")
+          FILE_SIZE=$(stat -f%z "ViType.dmg")
+          
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "build=$BUILD" >> $GITHUB_OUTPUT
+          echo "file_size=$FILE_SIZE" >> $GITHUB_OUTPUT
+          
+          # Find sign_update tool from Sparkle SPM package
+          SIGN_UPDATE=$(find ~/Library/Developer/Xcode/DerivedData -name "sign_update" -type f 2>/dev/null | head -1)
+          
+          if [ -n "$SIGN_UPDATE" ] && [ -n "$SPARKLE_PRIVATE_KEY" ]; then
+            echo "$SPARKLE_PRIVATE_KEY" > /tmp/sparkle_private_key
+            
+            SIGN_OUTPUT=$("$SIGN_UPDATE" "ViType.dmg" --ed-key-file /tmp/sparkle_private_key 2>&1 || true)
+            SIGNATURE=$(echo "$SIGN_OUTPUT" | grep -o 'sparkle:edSignature="[^"]*"' | sed 's/sparkle:edSignature="//;s/"$//')
+            
+            rm -f /tmp/sparkle_private_key
+            
+            if [ -n "$SIGNATURE" ]; then
+              echo "signature=$SIGNATURE" >> $GITHUB_OUTPUT
+              echo "EdDSA Signature: $SIGNATURE"
+            else
+              echo "Warning: Could not extract EdDSA signature"
+              echo "Sign output: $SIGN_OUTPUT"
+            fi
+          else
+            echo "Warning: sign_update tool or SPARKLE_PRIVATE_KEY not found, skipping Sparkle signing"
+          fi
+
       - name: Upload DMG to Release
         uses: softprops/action-gh-release@v2
         with:
           files: ViType.dmg
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Update appcast.xml for Sparkle
+        if: steps.sparkle_sign.outputs.signature != ''
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          VERSION: ${{ steps.sparkle_sign.outputs.version }}
+          BUILD: ${{ steps.sparkle_sign.outputs.build }}
+          FILE_SIZE: ${{ steps.sparkle_sign.outputs.file_size }}
+          SIGNATURE: ${{ steps.sparkle_sign.outputs.signature }}
+          TAG: ${{ github.ref_name }}
+          REPO: ${{ github.repository }}
+        run: |
+          PUB_DATE=$(date -u "+%a, %d %b %Y %H:%M:%S +0000")
+          DOWNLOAD_URL="https://github.com/${REPO}/releases/download/${TAG}/ViType.dmg"
+          
+          python3 << 'EOF'
+          import os
+          import re
+          
+          version = os.environ['VERSION']
+          build = os.environ['BUILD']
+          file_size = os.environ['FILE_SIZE']
+          signature = os.environ['SIGNATURE']
+          pub_date = os.environ['PUB_DATE']
+          download_url = os.environ['DOWNLOAD_URL']
+          
+          new_item = f'''    <item>
+              <title>Version {version}</title>
+              <sparkle:version>{build}</sparkle:version>
+              <sparkle:shortVersionString>{version}</sparkle:shortVersionString>
+              <sparkle:minimumSystemVersion>14.6</sparkle:minimumSystemVersion>
+              <pubDate>{pub_date}</pubDate>
+              <enclosure
+                url="{download_url}"
+                type="application/octet-stream"
+                sparkle:edSignature="{signature}"
+                length="{file_size}"
+              />
+              <description><![CDATA[
+                <h2>What's New in {version}</h2>
+                <p>See release notes on GitHub for details.</p>
+              ]]></description>
+            </item>'''
+          
+          with open('appcast.xml', 'r') as f:
+              content = f.read()
+          
+          pattern = r'(<!-- Add new releases here \(newest first\) -->)'
+          replacement = r'\1\n\n' + new_item
+          content = re.sub(pattern, replacement, content)
+          
+          with open('appcast.xml', 'w') as f:
+              f.write(content)
+          
+          print(f"Updated appcast.xml with version {version} (build {build})")
+          EOF
+          
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          
+          git add appcast.xml
+          git commit -m "Update appcast.xml for version ${VERSION}"
+          git push origin HEAD:main
 
       - name: Cleanup keychain
         if: always()

@@ -22,6 +22,7 @@
 
 /* Begin PBXBuildFile section */
 		433B02B92EFEB213003FF75A /* libvitype_core.a in Frameworks */ = {isa = PBXBuildFile; fileRef = 433B02B82EFEB213003FF75A /* libvitype_core.a */; };
+		43FEF27B2F0FE38600DDC92C /* Sparkle in Frameworks */ = {isa = PBXBuildFile; productRef = 43FEF27A2F0FE38600DDC92C /* Sparkle */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -53,6 +54,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				433B02B92EFEB213003FF75A /* libvitype_core.a in Frameworks */,
+				43FEF27B2F0FE38600DDC92C /* Sparkle in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -90,6 +92,7 @@
 			);
 			name = ViType;
 			packageProductDependencies = (
+				43FEF27A2F0FE38600DDC92C /* Sparkle */,
 			);
 			productName = ViType;
 			productReference = 433B02DA2EFEC5EF003FF75A /* ViType.app */;
@@ -120,6 +123,9 @@
 			);
 			mainGroup = 43305C272EFE2A37006B7133;
 			minimizedProjectReferenceProxies = 1;
+			packageReferences = (
+				43FEF2792F0FE38600DDC92C /* XCRemoteSwiftPackageReference "Sparkle" */,
+			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 43305C272EFE2A37006B7133;
 			projectDirPath = "";
@@ -155,7 +161,7 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/bash;
-			shellScript = "#!/bin/bash\n# Automatic versioning from git tags\nset -e\n\n# Get version from git tag (fallback to 0.0.1)\nGIT_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo \"0.0.1\")\nVERSION=\"${GIT_TAG#v}\"\n\n# Get commit count since last tag + 1 (so exact tag = build 1)\nCOMMITS_SINCE_TAG=$(git rev-list \"${GIT_TAG}\"..HEAD --count 2>/dev/null || echo \"0\")\nBUILD_NUMBER=$((COMMITS_SINCE_TAG + 1))\n\n# If no tags exist, use total commit count\nif [ \"$GIT_TAG\" = \"0.0.1\" ]; then\n    BUILD_NUMBER=$(git rev-list HEAD --count 2>/dev/null || echo \"1\")\nfi\n\n# Update Info.plist in build output\nPLIST=\"${TARGET_BUILD_DIR}/${INFOPLIST_PATH}\"\nif [ -f \"$PLIST\" ]; then\n    /usr/libexec/PlistBuddy -c \"Set :CFBundleShortVersionString ${VERSION}\" \"$PLIST\"\n    /usr/libexec/PlistBuddy -c \"Set :CFBundleVersion ${BUILD_NUMBER}\" \"$PLIST\"\n    echo \"ViType: Version ${VERSION} (Build ${BUILD_NUMBER})\"\nelse\n    echo \"warning: Info.plist not found at ${PLIST}, skipping version injection\"\nfi\n";
+			shellScript = "#!/bin/bash\n# Automatic versioning from git tags + Sparkle configuration\nset -e\n\n# Get version from git tag (fallback to 0.0.1)\nGIT_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo \"0.0.1\")\nVERSION=\"${GIT_TAG#v}\"\n\n# Get commit count since last tag + 1 (so exact tag = build 1)\nCOMMITS_SINCE_TAG=$(git rev-list \"${GIT_TAG}\"..HEAD --count 2>/dev/null || echo \"0\")\nBUILD_NUMBER=$((COMMITS_SINCE_TAG + 1))\n\n# If no tags exist, use total commit count\nif [ \"$GIT_TAG\" = \"0.0.1\" ]; then\n    BUILD_NUMBER=$(git rev-list HEAD --count 2>/dev/null || echo \"1\")\nfi\n\n# Update Info.plist in build output\nPLIST=\"${TARGET_BUILD_DIR}/${INFOPLIST_PATH}\"\nif [ -f \"$PLIST\" ]; then\n    /usr/libexec/PlistBuddy -c \"Set :CFBundleShortVersionString ${VERSION}\" \"$PLIST\"\n    /usr/libexec/PlistBuddy -c \"Set :CFBundleVersion ${BUILD_NUMBER}\" \"$PLIST\"\n    echo \"ViType: Version ${VERSION} (Build ${BUILD_NUMBER})\"\n    \n    # Add Sparkle auto-update configuration\n    /usr/libexec/PlistBuddy -c \"Add :SUFeedURL string 'https://raw.githubusercontent.com/ttdatt/vitype/main/appcast.xml'\" \"$PLIST\" 2>/dev/null || /usr/libexec/PlistBuddy -c \"Set :SUFeedURL 'https://raw.githubusercontent.com/ttdatt/vitype/main/appcast.xml'\" \"$PLIST\"\n    /usr/libexec/PlistBuddy -c \"Add :SUPublicEDKey string 'l7nHGV0jVyQSVgDJsUK0Dm+gaI77GnKT3O9fPVkeDCI='\" \"$PLIST\" 2>/dev/null || /usr/libexec/PlistBuddy -c \"Set :SUPublicEDKey 'l7nHGV0jVyQSVgDJsUK0Dm+gaI77GnKT3O9fPVkeDCI='\" \"$PLIST\"\n    /usr/libexec/PlistBuddy -c \"Add :SUEnableAutomaticChecks bool true\" \"$PLIST\" 2>/dev/null || /usr/libexec/PlistBuddy -c \"Set :SUEnableAutomaticChecks true\" \"$PLIST\"\n    /usr/libexec/PlistBuddy -c \"Add :SUScheduledCheckInterval integer 86400\" \"$PLIST\" 2>/dev/null || /usr/libexec/PlistBuddy -c \"Set :SUScheduledCheckInterval 86400\" \"$PLIST\"\n    echo \"ViType: Sparkle configuration added\"\nelse\n    echo \"warning: Info.plist not found at ${PLIST}, skipping version injection\"\nfi\n";
 		};
 		7F1A3D922F2F6A2B00112233 /* Build Rust Core */ = {
 			isa = PBXShellScriptBuildPhase;
@@ -446,6 +452,25 @@
 			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		43FEF2792F0FE38600DDC92C /* XCRemoteSwiftPackageReference "Sparkle" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/sparkle-project/Sparkle";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 2.8.1;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		43FEF27A2F0FE38600DDC92C /* Sparkle */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 43FEF2792F0FE38600DDC92C /* XCRemoteSwiftPackageReference "Sparkle" */;
+			productName = Sparkle;
+		};
+/* End XCSwiftPackageProductDependency section */
 	};
 	rootObject = 43305C282EFE2A37006B7133 /* Project object */;
 }

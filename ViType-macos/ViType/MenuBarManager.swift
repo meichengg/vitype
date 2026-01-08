@@ -6,6 +6,7 @@
 //
 
 import Cocoa
+import Sparkle
 
 extension Notification.Name {
     static let showSettingsWindow = Notification.Name("showSettingsWindow")
@@ -15,8 +16,10 @@ final class MenuBarManager: NSObject {
     private var statusItem: NSStatusItem?
     private var userDefaultsObserver: NSObjectProtocol?
     private var languageObserver: NSObjectProtocol?
+    private weak var updaterController: SPUStandardUpdaterController?
 
-    override init() {
+    init(updaterController: SPUStandardUpdaterController? = nil) {
+        self.updaterController = updaterController
         super.init()
         setupStatusItem()
         startObservingDefaults()
@@ -136,6 +139,14 @@ final class MenuBarManager: NSObject {
         )
         settingsItem.target = self
         menu.addItem(settingsItem)
+
+        let checkForUpdatesItem = NSMenuItem(
+            title: "Check for Updates...".localized(),
+            action: #selector(SPUStandardUpdaterController.checkForUpdates(_:)),
+            keyEquivalent: ""
+        )
+        checkForUpdatesItem.target = updaterController
+        menu.addItem(checkForUpdatesItem)
 
         menu.addItem(NSMenuItem.separator())
 
