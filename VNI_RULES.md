@@ -693,7 +693,7 @@ Notes:
 | Đ transform | `dd` | `d9` |
 | Word boundaries | Include digits | Exclude digits |
 | Standalone key → ư | `w` → ư | `7` → `7` (no transform) |
-| Transform override | N/A (different keys) | `6`↔`7`↔`8` can override |
+| Transform override | `w`→`a` (ă→â), `w`→`o` (ơ→ô) | `6`↔`7`↔`8` can override |
 
 ### 8.4 C FFI Surface
 

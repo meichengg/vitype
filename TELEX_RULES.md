@@ -202,6 +202,12 @@ The `w` key transforms vowels to breve (ă) or horn (ơ, ư) variants:
 
 **Escape**: `oiww` → `oiw`, `uiww` → `uiw`
 
+**Override**: After a `w`-transform on `a` or `o`, the circumflex key can override it on the same vowel:
+- `hawa` → `hâ` (ă + a → â)
+- `hawysfa` → `hầy` (ằ + a → ầ)
+- `howo` → `hô` (ơ + o → ô)
+- `howfo` → `hồ` (ờ + o → ồ)
+
 ### 2.2.1 Standalone W → Ư/ư
 
 When there is **no vowel available to transform**, `w` is treated as a standalone vowel:

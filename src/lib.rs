@@ -763,6 +763,14 @@ impl VitypeEngine {
         max_distance: usize,
     ) -> Option<usize> {
         let key_lower = lower_char(key);
+        let matches_key = |base_lower: char| match key_lower {
+            // Telex "circumflex" keys can override prior w-transforms on the same vowel:
+            // - a key targets a/ă
+            // - o key targets o/ơ
+            'a' => base_lower == 'a' || base_lower == 'ă',
+            'o' => base_lower == 'o' || base_lower == 'ơ',
+            _ => base_lower == key_lower,
+        };
         let mut index = before;
         let mut distance = 0;
         if before == 0 {
@@ -777,7 +785,7 @@ impl VitypeEngine {
             if is_vowel(ch) {
                 let base_vowel = self.get_base_vowel(ch);
                 let base_lower = lower_char(base_vowel);
-                if base_lower != key_lower {
+                if !matches_key(base_lower) {
                     if index == adjacent_index
                         && (base_lower == 'i' || base_lower == 'y' || base_lower == 'u')
                     {
@@ -785,20 +793,7 @@ impl VitypeEngine {
                     }
                     return None;
                 }
-
-                if base_lower == key_lower {
-                    let ch_lower = lower_char(ch);
-                    if ch_lower == key_lower || TONED_TO_BASE.contains_key(&ch) {
-                        let actual_base =
-                            TONED_TO_BASE.get(&ch).map(|(base, _)| *base).unwrap_or(ch);
-                        let actual_base_lower = lower_char(actual_base);
-                        if actual_base_lower == key_lower {
-                            return Some(index);
-                        }
-                    }
-                }
-
-                return None;
+                return Some(index);
             }
         }
 

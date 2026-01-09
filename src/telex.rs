@@ -21,12 +21,12 @@ pub(super) fn is_telex_word_boundary(ch: char) -> bool {
 
 static VOWEL_TRANSFORMS: Lazy<HashMap<char, Vec<(char, char)>>> = Lazy::new(|| {
     let mut map = HashMap::new();
-    map.insert('a', vec![('a', 'â'), ('A', 'Â')]);
-    map.insert('A', vec![('a', 'Â'), ('A', 'Â')]);
+    map.insert('a', vec![('a', 'â'), ('A', 'Â'), ('ă', 'â'), ('Ă', 'Â')]);
+    map.insert('A', vec![('a', 'Â'), ('A', 'Â'), ('ă', 'Â'), ('Ă', 'Â')]);
     map.insert('e', vec![('e', 'ê'), ('E', 'Ê')]);
     map.insert('E', vec![('e', 'Ê'), ('E', 'Ê')]);
-    map.insert('o', vec![('o', 'ô'), ('O', 'Ô')]);
-    map.insert('O', vec![('o', 'Ô'), ('O', 'Ô')]);
+    map.insert('o', vec![('o', 'ô'), ('O', 'Ô'), ('ơ', 'ô'), ('Ơ', 'Ô')]);
+    map.insert('O', vec![('o', 'Ô'), ('O', 'Ô'), ('ơ', 'Ô'), ('Ơ', 'Ô')]);
     map.insert(
         'w',
         vec![

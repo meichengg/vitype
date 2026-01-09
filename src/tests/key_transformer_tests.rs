@@ -119,20 +119,20 @@ mod key_transformer_tests {
         assert_eq!(apply_input("eaoe"), "eaoe");
         assert_eq!(apply_input("oa o"), "oa o");
     }
-    
+
     #[test]
     fn testNoOpRewriteActionIsNotEmittedForEnglishMultipleClusters() {
         let mut transformer = VitypeEngine::new();
-        
+
         assert_eq!(transformer.process("p"), None);
         assert_eq!(transformer.process("a"), None);
         assert_eq!(transformer.process("y"), None);
         assert_eq!(transformer.process("m"), None);
-        
+
         // "paym" + "e" creates multiple vowel clusters (a/y then e). The engine should switch to
         // foreign mode, but must not emit a rewrite action when the visible text is already raw.
         assert_eq!(transformer.process("e"), None);
-        
+
         assert_eq!(transformer.process("n"), None);
         assert_eq!(transformer.process("t"), None);
     }
@@ -261,6 +261,20 @@ mod key_transformer_tests {
 
         assert_eq!(transformer.process("u"), None);
         assert_eq!(transformer.process("w"), Some(action(1, "ư")));
+    }
+
+    #[test]
+    fn testCircumflexOverridesBreveOrHorn() {
+        // After applying a w-transform (ă/ơ), the circumflex key (a/o) should be able to
+        // override it on the same vowel without requiring an escape sequence.
+        assert_eq!(apply_input("hawa"), "hâ");
+        assert_eq!(apply_input("hawya"), "hây");
+        assert_eq!(apply_input("hawysfa"), "hầy");
+
+        assert_eq!(apply_input("howo"), "hô");
+        assert_eq!(apply_input("howio"), "hôi");
+        assert_eq!(apply_input("howsio"), "hối");
+        assert_eq!(apply_input("howfo"), "hồ");
     }
 
     #[test]
@@ -516,7 +530,7 @@ mod key_transformer_tests {
         assert_eq!(ow_action, Some(action(1, "ơ")));
 
         let _ = transformer.process("i"); // ngươi
-        // ơ is special vowel → tone goes on ơ (not i)
+                                          // ơ is special vowel → tone goes on ơ (not i)
         let tone_action = transformer.process("f");
         // deleteCount=2: delete "ơi", text="ời": replaces from toned vowel to end
         assert_eq!(tone_action, Some(action(2, "ời")));

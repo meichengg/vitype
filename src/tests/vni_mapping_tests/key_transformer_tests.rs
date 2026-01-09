@@ -9,8 +9,8 @@ use super::{action, apply_vni_input, create_vni_engine};
 
 mod key_transformer_tests {
     use super::{action, apply_vni_input, create_vni_engine};
-    use crate::VitypeEngine;
     use crate::HistorySegment;
+    use crate::VitypeEngine;
 
     fn apply_key(engine: &mut VitypeEngine, output: &mut Vec<char>, ch: char) {
         let ch_str = ch.to_string();
@@ -118,20 +118,20 @@ mod key_transformer_tests {
         assert_eq!(apply_vni_input("eaoe"), "eaoe");
         assert_eq!(apply_vni_input("oa o"), "oa o");
     }
-    
+
     #[test]
     fn testNoOpRewriteActionIsNotEmittedForEnglishMultipleClusters() {
         let mut transformer = create_vni_engine();
-        
+
         assert_eq!(transformer.process("p"), None);
         assert_eq!(transformer.process("a"), None);
         assert_eq!(transformer.process("y"), None);
         assert_eq!(transformer.process("m"), None);
-        
+
         // "paym" + "e" creates multiple vowel clusters (a/y then e). The engine should switch to
         // foreign mode, but must not emit a rewrite action when the visible text is already raw.
         assert_eq!(transformer.process("e"), None);
-        
+
         assert_eq!(transformer.process("n"), None);
         assert_eq!(transformer.process("t"), None);
     }
@@ -260,6 +260,20 @@ mod key_transformer_tests {
 
         assert_eq!(transformer.process("u"), None);
         assert_eq!(transformer.process("7"), Some(action(1, "ư")));
+    }
+
+    #[test]
+    fn testCircumflexOverridesBreveOrHorn() {
+        // VNI keys can override each other on the same vowel:
+        // - a8 (ă) then 6 (â)
+        // - o7 (ơ) then 6 (ô)
+        assert_eq!(apply_vni_input("ha86"), "hâ");
+        assert_eq!(apply_vni_input("ha8y6"), "hây");
+        assert_eq!(apply_vni_input("ha8y126"), "hầy");
+
+        assert_eq!(apply_vni_input("ho76"), "hô");
+        assert_eq!(apply_vni_input("ho7i16"), "hối");
+        assert_eq!(apply_vni_input("ho726"), "hồ");
     }
 
     #[test]
@@ -515,7 +529,7 @@ mod key_transformer_tests {
         assert_eq!(ow_action, Some(action(1, "ơ")));
 
         let _ = transformer.process("i"); // ngươi
-        // ơ is special vowel → tone goes on ơ (not i)
+                                          // ơ is special vowel → tone goes on ơ (not i)
         let tone_action = transformer.process("2");
         // deleteCount=2: delete "ơi", text="ời": replaces from toned vowel to end
         assert_eq!(tone_action, Some(action(2, "ời")));
