@@ -417,8 +417,8 @@ mod key_transformer_tests {
         assert_eq!(apply_input("ex"), "ẽ");
         assert_eq!(apply_input("expe"), "ễp");
         assert_eq!(apply_input("exx"), "ex");
-        assert_eq!(apply_input("exxpe"), "êxp");
-        assert_eq!(apply_input("exxpee"), "expe");
+        assert_eq!(apply_input("exxpe"), "expe");
+        assert_eq!(apply_input("exxpee"), "expee");
     }
 
     // MARK: - Buffer Reset Tests

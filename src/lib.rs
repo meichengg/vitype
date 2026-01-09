@@ -30,6 +30,7 @@ struct WordSegment {
     buffer: Vec<char>,
     raw_buffer: Vec<char>,
     is_foreign_mode: bool,
+    transforms_locked: bool,
 }
 
 #[derive(Clone, Debug)]
@@ -43,6 +44,7 @@ pub struct VitypeEngine {
     raw_buffer: Vec<char>,
     history: VecDeque<HistorySegment>,
     is_foreign_mode: bool,
+    transforms_locked: bool,
     last_transform_key: Option<char>,
     last_w_transform_kind: WTransformKind,
     suppressed_transform_key: Option<char>,
@@ -59,6 +61,7 @@ impl VitypeEngine {
             raw_buffer: Vec::new(),
             history: VecDeque::new(),
             is_foreign_mode: false,
+            transforms_locked: false,
             last_transform_key: None,
             last_w_transform_kind: WTransformKind::None,
             suppressed_transform_key: None,
@@ -93,6 +96,7 @@ impl VitypeEngine {
     fn clear_last_transform_and_suppress(&mut self, suppressed_key: char) {
         self.clear_last_transform_state();
         self.suppressed_transform_key = Some(suppressed_key);
+        self.transforms_locked = true;
     }
 
     pub(crate) fn set_auto_fix_tone(&mut self, enabled: bool) {
@@ -139,7 +143,7 @@ impl VitypeEngine {
 
         self.raw_buffer.push(ch);
 
-        if self.is_foreign_mode {
+        if self.is_foreign_mode || self.transforms_locked {
             self.buffer.push(ch);
             return None;
         }
@@ -820,6 +824,7 @@ impl VitypeEngine {
         self.raw_buffer.clear();
         self.clear_transform_state();
         self.is_foreign_mode = false;
+        self.transforms_locked = false;
     }
 
     pub(crate) fn reset(&mut self) {
@@ -833,18 +838,22 @@ impl VitypeEngine {
             // This preserves legacy behavior for edge-cases where raw keystrokes might exist but output doesn't.
             self.raw_buffer.clear();
             self.is_foreign_mode = false;
+            self.transforms_locked = false;
             return;
         }
 
         let buffer = std::mem::take(&mut self.buffer);
         let raw_buffer = std::mem::take(&mut self.raw_buffer);
         let is_foreign_mode = self.is_foreign_mode;
+        let transforms_locked = self.transforms_locked;
         self.history.push_back(HistorySegment::Word(WordSegment {
             buffer,
             raw_buffer,
             is_foreign_mode,
+            transforms_locked,
         }));
         self.is_foreign_mode = false;
+        self.transforms_locked = false;
 
         self.trim_history_to_word_limit();
     }
@@ -884,6 +893,7 @@ impl VitypeEngine {
                 self.buffer = word.buffer;
                 self.raw_buffer = word.raw_buffer;
                 self.is_foreign_mode = word.is_foreign_mode;
+                self.transforms_locked = word.transforms_locked;
                 self.clear_transform_state();
                 true
             }
@@ -901,6 +911,9 @@ impl VitypeEngine {
             self.raw_buffer.pop();
             self.clear_transform_state();
             self.is_foreign_mode = self.has_multiple_vowel_clusters(self.buffer.len());
+            if self.buffer.is_empty() {
+                self.transforms_locked = false;
+            }
             return;
         }
 
@@ -913,6 +926,7 @@ impl VitypeEngine {
                 }
                 self.clear_transform_state();
                 self.is_foreign_mode = false;
+                self.transforms_locked = false;
 
                 // If we just deleted the last boundary, we're now at the end of the previous word.
                 if self.buffer.is_empty()
@@ -929,6 +943,9 @@ impl VitypeEngine {
                         self.raw_buffer.pop();
                         self.clear_transform_state();
                         self.is_foreign_mode = self.has_multiple_vowel_clusters(self.buffer.len());
+                        if self.buffer.is_empty() {
+                            self.transforms_locked = false;
+                        }
                     }
                 }
             }

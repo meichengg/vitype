@@ -112,9 +112,9 @@ W has special behavior because it also produces `ư` when standalone:
 | `wa`  | ưa     | w → ư, then a appended |
 | `ww`  | w      | Escape: produces literal w |
 | `wwa` | wa     | After escape, w is consonant + a |
-| `wwas`| wá     | w consonant + á |
+| `wwas`| was    | After escape, tone keys are literal |
 | `wwifi` | wifi | w consonant + ifi (foreign word) |
-| `wwuw`| wư     | w consonant, then uw → ư |
+| `wwuw`| wuw    | After escape, vowel transforms are literal |
 
 **Use case**: Typing foreign words like "wifi", "web", "window":
 - `wwifi` → wifi
@@ -701,7 +701,7 @@ Actually, the escape outputs the **original vowel with its tone** plus the key:
 ### 5.6 Repeated Escape Keys
 
 After an escape, repeating the **same** key keeps appending the literal key.
-Transforms resume after a different key or a word boundary.
+Transforms are suppressed until a word boundary.
 
 | Sequence | Final | Explanation |
 |----------|-------|-------------|
@@ -905,7 +905,7 @@ The `delete_count` represents how many characters to delete from the **current o
 - Reset on word boundary characters
 - `is_foreign_mode` disables transforms after invalid vowel clusters until a boundary
 - `last_transform_key` and `last_w_transform_kind` track recent transforms for escape handling
-- `suppressed_transform_key` prevents immediate re-trigger after an escape
+- After an escape, transforms are suppressed until a word boundary
 
 ### 8.5 C FFI Surface
 

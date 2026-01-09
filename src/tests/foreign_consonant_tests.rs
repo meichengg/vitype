@@ -337,79 +337,77 @@ mod foreign_consonant_tests {
 
     #[test]
     fn testWAsConsonantAfterEscapeWithToneSac() {
-        assert_eq!(apply_input("wwas"), "wá");
-        assert_eq!(apply_input("wwes"), "wé");
-        assert_eq!(apply_input("wwis"), "wí");
-        assert_eq!(apply_input("wwos"), "wó");
-        assert_eq!(apply_input("wwus"), "wú");
+        assert_eq!(apply_input("wwas"), "was");
+        assert_eq!(apply_input("wwes"), "wes");
+        assert_eq!(apply_input("wwis"), "wis");
+        assert_eq!(apply_input("wwos"), "wos");
+        assert_eq!(apply_input("wwus"), "wus");
     }
 
     #[test]
     fn testWAsConsonantAfterEscapeWithToneHuyen() {
-        assert_eq!(apply_input("wwaf"), "wà");
-        assert_eq!(apply_input("wwef"), "wè");
-        assert_eq!(apply_input("wwif"), "wì");
-        assert_eq!(apply_input("wwof"), "wò");
-        assert_eq!(apply_input("wwuf"), "wù");
+        assert_eq!(apply_input("wwaf"), "waf");
+        assert_eq!(apply_input("wwef"), "wef");
+        assert_eq!(apply_input("wwif"), "wif");
+        assert_eq!(apply_input("wwof"), "wof");
+        assert_eq!(apply_input("wwuf"), "wuf");
     }
 
     #[test]
     fn testWAsConsonantAfterEscapeWithToneHoi() {
-        assert_eq!(apply_input("wwar"), "wả");
-        assert_eq!(apply_input("wwer"), "wẻ");
-        assert_eq!(apply_input("wwir"), "wỉ");
-        assert_eq!(apply_input("wwor"), "wỏ");
-        assert_eq!(apply_input("wwur"), "wủ");
+        assert_eq!(apply_input("wwar"), "war");
+        assert_eq!(apply_input("wwer"), "wer");
+        assert_eq!(apply_input("wwir"), "wir");
+        assert_eq!(apply_input("wwor"), "wor");
+        assert_eq!(apply_input("wwur"), "wur");
     }
 
     #[test]
     fn testWAsConsonantAfterEscapeWithToneNga() {
-        assert_eq!(apply_input("wwax"), "wã");
-        assert_eq!(apply_input("wwex"), "wẽ");
-        assert_eq!(apply_input("wwix"), "wĩ");
-        assert_eq!(apply_input("wwox"), "wõ");
-        assert_eq!(apply_input("wwux"), "wũ");
+        assert_eq!(apply_input("wwax"), "wax");
+        assert_eq!(apply_input("wwex"), "wex");
+        assert_eq!(apply_input("wwix"), "wix");
+        assert_eq!(apply_input("wwox"), "wox");
+        assert_eq!(apply_input("wwux"), "wux");
     }
 
     #[test]
     fn testWAsConsonantAfterEscapeWithToneNang() {
-        assert_eq!(apply_input("wwaj"), "wạ");
-        assert_eq!(apply_input("wwej"), "wẹ");
-        assert_eq!(apply_input("wwij"), "wị");
-        assert_eq!(apply_input("wwoj"), "wọ");
-        assert_eq!(apply_input("wwuj"), "wụ");
+        assert_eq!(apply_input("wwaj"), "waj");
+        assert_eq!(apply_input("wwej"), "wej");
+        assert_eq!(apply_input("wwij"), "wij");
+        assert_eq!(apply_input("wwoj"), "woj");
+        assert_eq!(apply_input("wwuj"), "wuj");
     }
 
     #[test]
     fn testWAsConsonantAfterEscapeWithCircumflexVowels() {
-        assert_eq!(apply_input("wwaas"), "wấ");
-        assert_eq!(apply_input("wwees"), "wế");
-        assert_eq!(apply_input("wwoos"), "wố");
-        assert_eq!(apply_input("wweef"), "wề");
+        assert_eq!(apply_input("wwaas"), "waas");
+        assert_eq!(apply_input("wwees"), "wees");
+        assert_eq!(apply_input("wwoos"), "woos");
+        assert_eq!(apply_input("wweef"), "weef");
     }
 
     #[test]
     fn testWAsConsonantAfterEscapeWithHornVowels() {
-        // After ww->w escape, w acts as consonant
-        // Then aw -> ă, ow -> ơ, uw -> ư still work
-        assert_eq!(apply_input("wwaws"), "wắ");
-        assert_eq!(apply_input("wwows"), "wớ");
-        assert_eq!(apply_input("wwuws"), "wứ");
+        assert_eq!(apply_input("wwaws"), "waws");
+        assert_eq!(apply_input("wwows"), "wows");
+        assert_eq!(apply_input("wwuws"), "wuws");
     }
 
     #[test]
     fn testWAsConsonantAfterEscapeUppercase() {
         assert_eq!(apply_input("WWA"), "WA");
-        assert_eq!(apply_input("WWAS"), "WÁ");
-        assert_eq!(apply_input("Wwas"), "Wá");
-        assert_eq!(apply_input("WWEEF"), "WỀ");
+        assert_eq!(apply_input("WWAS"), "WAS");
+        assert_eq!(apply_input("Wwas"), "Was");
+        assert_eq!(apply_input("WWEEF"), "WEEF");
     }
 
     #[test]
     fn testWAsConsonantAfterEscapeWithFinalConsonant() {
-        assert_eq!(apply_input("wwams"), "wám");
-        assert_eq!(apply_input("wwangs"), "wáng");
-        assert_eq!(apply_input("wwanhf"), "wành");
+        assert_eq!(apply_input("wwams"), "wams");
+        assert_eq!(apply_input("wwangs"), "wangs");
+        assert_eq!(apply_input("wwanhf"), "wanhf");
     }
 
     #[test]
@@ -430,10 +428,9 @@ mod foreign_consonant_tests {
 
     #[test]
     fn testWAsConsonantThenWTransform() {
-        // After ww->w escape, can still use w to transform vowels
-        assert_eq!(apply_input("wwuw"), "wư"); // ww->w, then uw->ư
-        assert_eq!(apply_input("wwaw"), "wă"); // ww->w, then aw->ă
-        assert_eq!(apply_input("wwow"), "wơ"); // ww->w, then ow->ơ
+        assert_eq!(apply_input("wwuw"), "wuw");
+        assert_eq!(apply_input("wwaw"), "waw");
+        assert_eq!(apply_input("wwow"), "wow");
     }
 
     // MARK: - Mixed Foreign Consonants
@@ -810,6 +807,16 @@ mod repeated_escape_tests {
         // After escaping tone, typing a different key should work normally
         assert_eq!(apply_input("tasst"), "tast"); // After escape, t just appends
         assert_eq!(apply_input("tassn"), "tasn"); // After escape, n just appends
+    }
+
+    #[test]
+    fn testNoToneOrAccentAfterEscape() {
+        // After escaping a transform key, all subsequent transform keys in the same word
+        // should be treated as literal until a word boundary.
+        assert_eq!(apply_input("taffs"), "tafs"); // taf + s (literal), not táf
+        assert_eq!(apply_input("tassf"), "tasf"); // tas + f (literal), not tàs
+        assert_eq!(apply_input("awws"), "aws"); // aw + s (literal), not ắ
+        assert_eq!(apply_input("dddas"), "ddas"); // dda + s (literal), not ddá
     }
 
     #[test]

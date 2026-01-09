@@ -734,6 +734,15 @@ mod repeated_escape_tests {
     }
 
     #[test]
+    fn testNoToneOrAccentAfterEscape() {
+        // After escaping a transform key, all subsequent transform keys in the same word
+        // should be treated as literal until a word boundary.
+        assert_eq!(apply_vni_input("ta112"), "ta12"); // ta1 + 2 (literal), not tà1
+        assert_eq!(apply_vni_input("a661"), "a61"); // a6 + 1 (literal), not ấ
+        assert_eq!(apply_vni_input("d99a1"), "d9a1"); // d9 escaped, then 1 stays literal
+    }
+
+    #[test]
     fn testReTransformAfterWordBoundary() {
         assert_eq!(apply_vni_input("ta11 ta1"), "ta1 tá");
         assert_eq!(apply_vni_input("a66 a6"), "a6 â");

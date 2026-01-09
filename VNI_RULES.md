@@ -523,7 +523,7 @@ When a vowel has both a transform and a tone, the escape preserves the tone on t
 ### 5.6 Repeated Escape Keys
 
 After an escape, repeating the **same** key keeps appending the literal key.
-Transforms resume after a different key or a word boundary.
+Transforms are suppressed until a word boundary.
 
 | Sequence | Final | Explanation |
 |----------|-------|-------------|

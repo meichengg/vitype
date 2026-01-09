@@ -416,7 +416,7 @@ mod key_transformer_tests {
         assert_eq!(apply_vni_input("e4"), "ẽ");
         assert_eq!(apply_vni_input("e4p6"), "ễp");
         assert_eq!(apply_vni_input("e44"), "e4");
-        assert_eq!(apply_vni_input("e44p6"), "ê4p");
+        assert_eq!(apply_vni_input("e44p6"), "e4p6");
         assert_eq!(apply_vni_input("e44pe"), "e4pe");
     }
 
