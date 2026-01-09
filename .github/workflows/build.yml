@@ -106,6 +106,73 @@ jobs:
         run: |
           cp -R ViType-macos/build/ViType.xcarchive/Products/Applications/ViType.app ./ViType.app
 
+      - name: Re-sign Sparkle framework for notarization
+        run: |
+          SIGNING_IDENTITY="Developer ID Application: CI SOFTWARE SOLUTIONS COMPANY LIMITED (WRVJA39U7V)"
+          SPARKLE_FRAMEWORK="ViType.app/Contents/Frameworks/Sparkle.framework"
+          
+          # Check if Sparkle framework exists
+          if [ ! -d "$SPARKLE_FRAMEWORK" ]; then
+            echo "Sparkle.framework not found, skipping re-signing"
+            exit 0
+          fi
+          
+          echo "Re-signing Sparkle framework components..."
+          
+          # Sign XPC services first (deepest nested)
+          if [ -d "$SPARKLE_FRAMEWORK/Versions/B/XPCServices/Downloader.xpc" ]; then
+            codesign --force --options runtime --timestamp \
+              --sign "$SIGNING_IDENTITY" \
+              --keychain "$KEYCHAIN_PATH" \
+              "$SPARKLE_FRAMEWORK/Versions/B/XPCServices/Downloader.xpc"
+            echo "Signed Downloader.xpc"
+          fi
+          
+          if [ -d "$SPARKLE_FRAMEWORK/Versions/B/XPCServices/Installer.xpc" ]; then
+            codesign --force --options runtime --timestamp \
+              --sign "$SIGNING_IDENTITY" \
+              --keychain "$KEYCHAIN_PATH" \
+              "$SPARKLE_FRAMEWORK/Versions/B/XPCServices/Installer.xpc"
+            echo "Signed Installer.xpc"
+          fi
+          
+          # Sign Autoupdate binary
+          if [ -f "$SPARKLE_FRAMEWORK/Versions/B/Autoupdate" ]; then
+            codesign --force --options runtime --timestamp \
+              --sign "$SIGNING_IDENTITY" \
+              --keychain "$KEYCHAIN_PATH" \
+              "$SPARKLE_FRAMEWORK/Versions/B/Autoupdate"
+            echo "Signed Autoupdate"
+          fi
+          
+          # Sign Updater.app
+          if [ -d "$SPARKLE_FRAMEWORK/Versions/B/Updater.app" ]; then
+            codesign --force --options runtime --timestamp \
+              --sign "$SIGNING_IDENTITY" \
+              --keychain "$KEYCHAIN_PATH" \
+              "$SPARKLE_FRAMEWORK/Versions/B/Updater.app"
+            echo "Signed Updater.app"
+          fi
+          
+          # Re-sign the entire Sparkle framework
+          codesign --force --options runtime --timestamp \
+            --sign "$SIGNING_IDENTITY" \
+            --keychain "$KEYCHAIN_PATH" \
+            "$SPARKLE_FRAMEWORK"
+          echo "Signed Sparkle.framework"
+          
+          # Re-sign the main app (required after modifying nested code)
+          codesign --force --options runtime --timestamp \
+            --sign "$SIGNING_IDENTITY" \
+            --keychain "$KEYCHAIN_PATH" \
+            "ViType.app"
+          echo "Re-signed ViType.app"
+          
+          # Verify signatures
+          echo "Verifying signatures..."
+          codesign --verify --deep --strict --verbose=2 "ViType.app"
+          echo "All signatures verified successfully"
+
       - name: Notarize app
         env:
           APPLE_ID: ${{ secrets.APPLE_ID }}
@@ -193,8 +260,8 @@ jobs:
           TAG: ${{ github.ref_name }}
           REPO: ${{ github.repository }}
         run: |
-          PUB_DATE=$(date -u "+%a, %d %b %Y %H:%M:%S +0000")
-          DOWNLOAD_URL="https://github.com/${REPO}/releases/download/${TAG}/ViType.dmg"
+          export PUB_DATE=$(date -u "+%a, %d %b %Y %H:%M:%S +0000")
+          export DOWNLOAD_URL="https://github.com/${REPO}/releases/download/${TAG}/ViType.dmg"
           
           python3 << 'EOF'
           import os

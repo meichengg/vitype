@@ -174,22 +174,6 @@
         }
       }
     },
-    "Check for Updates..." : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Check for Updates..."
-          }
-        },
-        "vi" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Kiểm tra cập nhật..."
-          }
-        }
-      }
-    },
     "Character Encoding Help" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -220,6 +204,23 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Mã ký tự:"
+          }
+        }
+      }
+    },
+    "Check for Updates..." : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Check for Updates..."
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Kiểm tra cập nhật..."
           }
         }
       }
@@ -428,74 +429,6 @@
         }
       }
     },
-    "Nucleus Only" : {
-      "extractionState" : "stale",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Nucleus Only"
-          }
-        },
-        "vi" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Chỉ đặt trên âm chính"
-          }
-        }
-      }
-    },
-    "Orthographic" : {
-      "extractionState" : "stale",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Orthographic"
-          }
-        },
-        "vi" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Theo chính tả"
-          }
-        }
-      }
-    },
-    "Tone Placement Help" : {
-      "extractionState" : "stale",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Choose how tone marks are placed in vowel clusters (e.g., hóa vs hoá; úy vs uý)."
-          }
-        },
-        "vi" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Chọn cách đặt dấu trong cụm nguyên âm (ví dụ: hóa vs hoá; úy vs uý)."
-          }
-        }
-      }
-    },
-    "Tone Placement:" : {
-      "extractionState" : "stale",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Tone Placement:"
-          }
-        },
-        "vi" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Vị trí dấu:"
-          }
-        }
-      }
-    },
     "Key:" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -530,6 +463,23 @@
         }
       }
     },
+    "Nucleus Only" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nucleus Only"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Chỉ đặt trên âm chính"
+          }
+        }
+      }
+    },
     "Option" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -543,6 +493,23 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Option"
+          }
+        }
+      }
+    },
+    "Orthographic" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Orthographic"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Theo chính tả"
           }
         }
       }
@@ -767,6 +734,40 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Phím tắt chuyển đổi:"
+          }
+        }
+      }
+    },
+    "Tone Placement Help" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Choose how tone marks are placed in vowel clusters (e.g., hóa vs hoá; úy vs uý)."
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Chọn cách đặt dấu trong cụm nguyên âm (ví dụ: hóa vs hoá; úy vs uý)."
+          }
+        }
+      }
+    },
+    "Tone Placement:" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tone Placement:"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Vị trí dấu:"
           }
         }
       }
