@@ -264,6 +264,23 @@ jobs:
           export PUB_DATE=$(date -u "+%a, %d %b %Y %H:%M:%S +0000")
           export DOWNLOAD_URL="https://github.com/${REPO}/releases/download/${TAG}/ViType.dmg"
           
+          # Publish appcast updates to a dedicated branch so `main` history stays clean.
+          # (Sparkle feed URL is set to read from this branch.)
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          
+          # Configure git to use PAT for authentication
+          git remote set-url origin "https://x-access-token:${PAT_TOKEN}@github.com/${REPO}.git"
+          
+          # Checkout (or create) the appcast branch
+          git fetch origin main --prune
+          git fetch origin appcast --prune || true
+          if git show-ref --verify --quiet "refs/remotes/origin/appcast"; then
+            git checkout -B appcast origin/appcast
+          else
+            git checkout -B appcast origin/main
+          fi
+          
           python3 << 'EOF'
           import os
           import re
@@ -306,15 +323,13 @@ jobs:
           print(f"Updated appcast.xml with version {version} (build {build})")
           EOF
           
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          
-          # Configure git to use PAT for authentication
-          git remote set-url origin "https://x-access-token:${PAT_TOKEN}@github.com/${REPO}.git"
-          
           git add appcast.xml
+          if git diff --cached --quiet; then
+            echo "No changes to appcast.xml; skipping commit."
+            exit 0
+          fi
           git commit -m "Update appcast.xml for version ${VERSION}"
-          git push origin HEAD:main
+          git push origin appcast
 
       - name: Cleanup keychain
         if: always()
