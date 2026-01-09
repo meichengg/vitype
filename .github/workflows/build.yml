@@ -284,6 +284,7 @@ jobs:
           python3 << 'EOF'
           import os
           import re
+          import subprocess
           
           version = os.environ['VERSION']
           build = os.environ['BUILD']
@@ -291,6 +292,64 @@ jobs:
           signature = os.environ['SIGNATURE']
           pub_date = os.environ['PUB_DATE']
           download_url = os.environ['DOWNLOAD_URL']
+          tag = os.environ.get('TAG', '')
+          
+          def run_git(args):
+              return subprocess.check_output(["git", *args], text=True).strip()
+          
+          def get_previous_version(xml_text):
+              match = re.search(r'<sparkle:shortVersionString>([^<]+)</sparkle:shortVersionString>', xml_text)
+              return match.group(1).strip() if match else None
+          
+          def tag_exists(tag_name):
+              if not tag_name:
+                  return False
+              try:
+                  run_git(["rev-parse", "-q", "--verify", f"refs/tags/{tag_name}"])
+                  return True
+              except Exception:
+                  return False
+          
+          def resolve_previous_tag(prev_version, current_tag):
+              candidates = []
+              if prev_version:
+                  candidates.extend([prev_version, f"v{prev_version}"])
+              for cand in candidates:
+                  if cand != current_tag and tag_exists(cand):
+                      return cand
+              # Fallback: pick the most recent tag that is not the current tag
+              try:
+                  tags = run_git(["tag", "--sort=-creatordate"]).splitlines()
+                  for t in tags:
+                      if t and t != current_tag:
+                          return t
+              except Exception:
+                  pass
+              return None
+          
+          def get_commit_lines(prev_tag, current_tag):
+              if prev_tag and current_tag:
+                  args = ["log", f"{prev_tag}..{current_tag}", "--pretty=format:%h %s"]
+              else:
+                  args = ["log", "--pretty=format:%h %s"]
+              output = run_git(args)
+              return [line for line in output.splitlines() if line.strip()]
+          
+          with open('appcast.xml', 'r') as f:
+              content = f.read()
+          
+          prev_version = get_previous_version(content)
+          prev_tag = resolve_previous_tag(prev_version, tag)
+          commit_lines = get_commit_lines(prev_tag, tag)
+          
+          if commit_lines:
+              items = "\n".join(
+                  f"<li><code>{line.split(' ', 1)[0]}</code> {line.split(' ', 1)[1] if ' ' in line else ''}</li>"
+                  for line in commit_lines
+              )
+              notes_html = f"<p>Changes since {prev_tag or 'previous version'}:</p>\n<ul>\n{items}\n</ul>"
+          else:
+              notes_html = "<p>No changes listed.</p>"
           
           new_item = f'''    <item>
               <title>Version {version}</title>
@@ -306,12 +365,9 @@ jobs:
               />
               <description><![CDATA[
                 <h2>What's New in {version}</h2>
-                <p>See release notes on GitHub for details.</p>
+                {notes_html}
               ]]></description>
             </item>'''
-          
-          with open('appcast.xml', 'r') as f:
-              content = f.read()
           
           pattern = r'(<!-- Add new releases here \(newest first\) -->)'
           replacement = r'\1\n\n' + new_item
