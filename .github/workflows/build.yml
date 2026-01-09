@@ -253,6 +253,7 @@ jobs:
         if: steps.sparkle_sign.outputs.signature != ''
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PAT_TOKEN: ${{ secrets.PAT_TOKEN }}
           VERSION: ${{ steps.sparkle_sign.outputs.version }}
           BUILD: ${{ steps.sparkle_sign.outputs.build }}
           FILE_SIZE: ${{ steps.sparkle_sign.outputs.file_size }}
@@ -307,6 +308,9 @@ jobs:
           
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
+          
+          # Configure git to use PAT for authentication
+          git remote set-url origin "https://x-access-token:${PAT_TOKEN}@github.com/${REPO}.git"
           
           git add appcast.xml
           git commit -m "Update appcast.xml for version ${VERSION}"
