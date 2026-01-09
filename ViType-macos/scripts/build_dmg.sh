@@ -4,18 +4,36 @@ set -euo pipefail
 usage() {
   cat <<'EOF'
 Usage:
-  ./scripts/build_dmg.sh [--skip-build] [--app /path/to/ViType.app] [--out-dir /path/to/out] [--volname ViType]
+  ./scripts/build_dmg.sh [OPTIONS]
 
-Defaults:
-  - Builds the Release app via xcodebuild (unless --skip-build is passed)
-  - Output DMG is written to: <repo>/ViType-macos/dist/
-  - DMG filename includes version read from the built app's Info.plist
+Options:
+  --skip-build              Skip xcodebuild, use existing app
+  --app /path/to/ViType.app Path to existing app (required with --skip-build)
+  --out-dir /path/to/out    Output directory for DMG (default: dist/)
+  --volname NAME            DMG volume name (default: ViType)
+  --sign                    Enable code signing with Developer ID
+  --notarize                Enable notarization (requires --sign)
+  --apple-id EMAIL          Apple ID for notarization
+  --team-id ID              Apple Developer Team ID (default: WRVJA39U7V)
+  --signing-identity NAME   Code signing identity (default: auto-detect)
+  -h, --help                Show this help
+
+Environment Variables:
+  APPLE_ID_PASSWORD         App-specific password for notarization
+                            (or will prompt via Keychain)
 
 Examples:
-  cd ViType-macos
+  # Build without signing (development)
   ./scripts/build_dmg.sh
 
-  ./scripts/build_dmg.sh --skip-build --app "/path/to/ViType.app"
+  # Build with signing (no notarization)
+  ./scripts/build_dmg.sh --sign
+
+  # Full release build (like CI)
+  ./scripts/build_dmg.sh --sign --notarize --apple-id "you@example.com"
+
+  # Use existing app
+  ./scripts/build_dmg.sh --skip-build --app "/path/to/ViType.app" --sign
 EOF
 }
 
@@ -27,6 +45,11 @@ SKIP_BUILD="0"
 APP_PATH=""
 OUT_DIR="${PROJECT_DIR}/dist"
 VOLNAME="ViType"
+SIGN_APP="0"
+NOTARIZE_APP="0"
+APPLE_ID=""
+TEAM_ID="WRVJA39U7V"
+SIGNING_IDENTITY=""
 
 while [ $# -gt 0 ]; do
   case "$1" in
@@ -44,6 +67,26 @@ while [ $# -gt 0 ]; do
       ;;
     --volname)
       VOLNAME="${2:-}"
+      shift 2
+      ;;
+    --sign)
+      SIGN_APP="1"
+      shift
+      ;;
+    --notarize)
+      NOTARIZE_APP="1"
+      shift
+      ;;
+    --apple-id)
+      APPLE_ID="${2:-}"
+      shift 2
+      ;;
+    --team-id)
+      TEAM_ID="${2:-}"
+      shift 2
+      ;;
+    --signing-identity)
+      SIGNING_IDENTITY="${2:-}"
       shift 2
       ;;
     -h|--help)
@@ -70,18 +113,64 @@ require_cmd hdiutil
 require_cmd /usr/bin/ditto
 require_cmd /usr/bin/plutil
 
+# Validate signing/notarization options
+if [ "${NOTARIZE_APP}" = "1" ] && [ "${SIGN_APP}" != "1" ]; then
+  echo "error: --notarize requires --sign" >&2
+  exit 2
+fi
+
+if [ "${NOTARIZE_APP}" = "1" ] && [ -z "${APPLE_ID}" ]; then
+  echo "error: --notarize requires --apple-id" >&2
+  exit 2
+fi
+
+if [ "${SIGN_APP}" = "1" ]; then
+  require_cmd codesign
+
+  # Auto-detect signing identity if not provided
+  if [ -z "${SIGNING_IDENTITY}" ]; then
+    SIGNING_IDENTITY=$(security find-identity -v -p codesigning | grep "Developer ID Application" | head -1 | sed 's/.*"\(.*\)".*/\1/' || true)
+    if [ -z "${SIGNING_IDENTITY}" ]; then
+      echo "error: No 'Developer ID Application' certificate found in Keychain." >&2
+      echo "       Install your certificate or specify --signing-identity" >&2
+      exit 1
+    fi
+    echo "Using signing identity: ${SIGNING_IDENTITY}"
+  fi
+fi
+
+if [ "${NOTARIZE_APP}" = "1" ]; then
+  require_cmd xcrun
+fi
+
 if [ "${SKIP_BUILD}" != "1" ]; then
   require_cmd xcodebuild
 
   DERIVED_DATA="${PROJECT_DIR}/.derivedData"
   rm -rf "${DERIVED_DATA}"
 
-  xcodebuild \
-    -project "${PROJECT_DIR}/ViType.xcodeproj" \
-    -scheme "ViType" \
-    -configuration "Release" \
-    -derivedDataPath "${DERIVED_DATA}" \
-    build
+  if [ "${SIGN_APP}" = "1" ]; then
+    echo "Building with code signing enabled..."
+    xcodebuild \
+      -project "${PROJECT_DIR}/ViType.xcodeproj" \
+      -scheme "ViType" \
+      -configuration "Release" \
+      -derivedDataPath "${DERIVED_DATA}" \
+      CODE_SIGN_IDENTITY="${SIGNING_IDENTITY}" \
+      DEVELOPMENT_TEAM="${TEAM_ID}" \
+      CODE_SIGN_STYLE=Manual \
+      CODE_SIGNING_REQUIRED=YES \
+      OTHER_CODE_SIGN_FLAGS="--options=runtime" \
+      build
+  else
+    echo "Building without code signing..."
+    xcodebuild \
+      -project "${PROJECT_DIR}/ViType.xcodeproj" \
+      -scheme "ViType" \
+      -configuration "Release" \
+      -derivedDataPath "${DERIVED_DATA}" \
+      build
+  fi
 
   APP_PATH="${DERIVED_DATA}/Build/Products/Release/ViType.app"
 fi
@@ -100,6 +189,97 @@ INFO_PLIST="${APP_PATH}/Contents/Info.plist"
 if [ ! -f "${INFO_PLIST}" ]; then
   echo "error: Info.plist not found in app bundle: ${INFO_PLIST}" >&2
   exit 1
+fi
+
+# Re-sign Sparkle framework components if signing is enabled
+if [ "${SIGN_APP}" = "1" ]; then
+  echo ""
+  echo "=== Re-signing Sparkle Framework Components ==="
+
+  SPARKLE_FRAMEWORK="${APP_PATH}/Contents/Frameworks/Sparkle.framework"
+  if [ -d "${SPARKLE_FRAMEWORK}" ]; then
+    # Sign XPC services first (innermost components)
+    for xpc in "${SPARKLE_FRAMEWORK}/Versions/B/XPCServices"/*.xpc; do
+      if [ -d "${xpc}" ]; then
+        echo "Signing $(basename "${xpc}")..."
+        codesign --force --options runtime --timestamp \
+          --sign "${SIGNING_IDENTITY}" "${xpc}"
+      fi
+    done
+
+    # Sign Autoupdate binary
+    AUTOUPDATE="${SPARKLE_FRAMEWORK}/Versions/B/Autoupdate"
+    if [ -f "${AUTOUPDATE}" ]; then
+      echo "Signing Autoupdate..."
+      codesign --force --options runtime --timestamp \
+        --sign "${SIGNING_IDENTITY}" "${AUTOUPDATE}"
+    fi
+
+    # Sign Updater.app
+    UPDATER_APP="${SPARKLE_FRAMEWORK}/Versions/B/Updater.app"
+    if [ -d "${UPDATER_APP}" ]; then
+      echo "Signing Updater.app..."
+      codesign --force --options runtime --timestamp \
+        --sign "${SIGNING_IDENTITY}" "${UPDATER_APP}"
+    fi
+
+    # Sign the framework itself
+    echo "Signing Sparkle.framework..."
+    codesign --force --options runtime --timestamp \
+      --sign "${SIGNING_IDENTITY}" "${SPARKLE_FRAMEWORK}"
+
+    # Re-sign the main app to update its seal
+    echo "Re-signing ${APP_PATH}..."
+    codesign --force --options runtime --timestamp \
+      --sign "${SIGNING_IDENTITY}" "${APP_PATH}"
+  else
+    echo "note: Sparkle.framework not found, skipping framework re-signing"
+  fi
+
+  # Verify signatures
+  echo ""
+  echo "=== Verifying Code Signatures ==="
+  if codesign --verify --deep --strict --verbose=2 "${APP_PATH}"; then
+    echo "Signature verification passed."
+  else
+    echo "error: Signature verification failed!" >&2
+    exit 1
+  fi
+fi
+
+# Notarize the app if requested
+if [ "${NOTARIZE_APP}" = "1" ]; then
+  echo ""
+  echo "=== Notarizing App ==="
+
+  NOTARIZE_ZIP="$(mktemp -d)/ViType.zip"
+  ditto -c -k --keepParent "${APP_PATH}" "${NOTARIZE_ZIP}"
+
+  echo "Submitting to Apple notarization service..."
+  if [ -n "${APPLE_ID_PASSWORD:-}" ]; then
+    xcrun notarytool submit "${NOTARIZE_ZIP}" \
+      --apple-id "${APPLE_ID}" \
+      --password "${APPLE_ID_PASSWORD}" \
+      --team-id "${TEAM_ID}" \
+      --wait
+  else
+    # Use Keychain for password (will prompt or use stored credential)
+    xcrun notarytool submit "${NOTARIZE_ZIP}" \
+      --apple-id "${APPLE_ID}" \
+      --keychain-profile "AC_PASSWORD" \
+      --wait 2>/dev/null || \
+    xcrun notarytool submit "${NOTARIZE_ZIP}" \
+      --apple-id "${APPLE_ID}" \
+      --team-id "${TEAM_ID}" \
+      --wait
+  fi
+
+  rm -f "${NOTARIZE_ZIP}"
+
+  echo "Stapling notarization ticket..."
+  xcrun stapler staple "${APP_PATH}"
+
+  echo "Notarization complete."
 fi
 
 APP_NAME="$(basename "${APP_PATH}" .app)"
