@@ -120,14 +120,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
     }
     
-    @objc private func showSettingsWindow() {
+    @objc private func showSettingsWindow(_ notification: Notification) {
+        // Extract target tab from notification userInfo if provided
+        let targetTab = notification.userInfo?[SettingsNotificationKey.tab] as? SettingsTab
+        openSettingsWindow(tab: targetTab)
+    }
+
+    private func openSettingsWindow(tab: SettingsTab? = nil) {
         Task { @MainActor in
             // Show app in Dock temporarily while settings window is open
             NSApp.setActivationPolicy(.regular)
             NSApp.activate(ignoringOtherApps: true)
             NSApp.unhide(nil)
 
-            let settingsWindow = await WindowManager.shared.openSettings()
+            let settingsWindow = await WindowManager.shared.openSettings(tab: tab)
             self.observeWindowClose(settingsWindow)
         }
     }
@@ -158,7 +164,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
         // Called when user clicks the app icon while it's already running (e.g., from Finder, Dock, Spotlight)
         // Show the settings window and Dock icon for consistent behavior
-        showSettingsWindow()
+        openSettingsWindow(tab: nil)
         return false // We handled it
     }
 

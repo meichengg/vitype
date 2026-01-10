@@ -26,6 +26,7 @@ enum SettingsTab: String, CaseIterable {
 
 struct ContentView: View {
     @StateObject private var localizationManager = LocalizationManager.shared
+    @ObservedObject private var windowManager = WindowManager.shared
     @State private var selectedTab: SettingsTab = .general
 
     @AppStorage("autoFixTone") private var autoFixTone = true
@@ -107,6 +108,12 @@ struct ContentView: View {
         .padding()
         .frame(width: 420)
         .id(localizationManager.currentLanguage) // Force refresh when language changes
+        .onChange(of: windowManager.requestedTab) { _, newTab in
+            if let tab = newTab {
+                selectedTab = tab
+                windowManager.requestedTab = nil
+            }
+        }
     }
 }
 

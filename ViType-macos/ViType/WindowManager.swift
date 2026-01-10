@@ -6,12 +6,16 @@
 //
 
 import Cocoa
+import Combine
 import SwiftUI
 
 /// Singleton that bridges AppKit (AppDelegate/MenuBarManager) with SwiftUI's window management.
 /// This allows us to open SwiftUI windows from anywhere in the app.
-final class WindowManager {
+final class WindowManager: ObservableObject {
     static let shared = WindowManager()
+
+    /// The tab to navigate to when opening settings. ContentView observes this.
+    @Published var requestedTab: SettingsTab?
 
     private static let settingsWindowIdentifier = NSUserInterfaceItemIdentifier("vitype.settings")
     
@@ -29,9 +33,15 @@ final class WindowManager {
     
     /// Opens the settings window. Can be called from AppDelegate or MenuBarManager.
     /// Always returns an NSWindow (SwiftUI window when available; otherwise AppKit fallback).
+    /// - Parameter tab: Optional tab to navigate to. If nil, uses the current/default tab.
     @MainActor
     @discardableResult
-    func openSettings() async -> NSWindow {
+    func openSettings(tab: SettingsTab? = nil) async -> NSWindow {
+        // Set requested tab before opening window so ContentView can observe it
+        if let tab {
+            requestedTab = tab
+        }
+
         if let existing = findSettingsWindow() {
             present(existing)
             return existing

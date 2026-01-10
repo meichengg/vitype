@@ -12,6 +12,11 @@ extension Notification.Name {
     static let showSettingsWindow = Notification.Name("showSettingsWindow")
 }
 
+/// Keys for notification userInfo
+enum SettingsNotificationKey {
+    static let tab = "tab"
+}
+
 final class MenuBarManager: NSObject {
     private var statusItem: NSStatusItem?
     private var userDefaultsObserver: NSObjectProtocol?
@@ -140,6 +145,14 @@ final class MenuBarManager: NSObject {
         settingsItem.target = self
         menu.addItem(settingsItem)
 
+        let appExclusionItem = NSMenuItem(
+            title: "App Exclusion...".localized(),
+            action: #selector(openAppExclusion),
+            keyEquivalent: ""
+        )
+        appExclusionItem.target = self
+        menu.addItem(appExclusionItem)
+
         let checkForUpdatesItem = NSMenuItem(
             title: "Check for Updates...".localized(),
             action: #selector(SPUStandardUpdaterController.checkForUpdates(_:)),
@@ -190,6 +203,15 @@ final class MenuBarManager: NSObject {
     @objc private func openSettings() {
         // Post notification - AppDelegate handles all the window management
         NotificationCenter.default.post(name: .showSettingsWindow, object: nil)
+    }
+
+    @objc private func openAppExclusion() {
+        // Post notification with tab info - AppDelegate handles window management
+        NotificationCenter.default.post(
+            name: .showSettingsWindow,
+            object: nil,
+            userInfo: [SettingsNotificationKey.tab: SettingsTab.appExclusion]
+        )
     }
 
     @objc private func showAbout() {
