@@ -167,6 +167,25 @@ mod key_transformer_tests {
     }
 
     #[test]
+    fn testBackspaceAfterToneThenForeignModeRewriteStaysCorrect() {
+        let mut engine = VitypeEngine::new();
+        let mut output: Vec<char> = Vec::new();
+
+        for ch in "res".chars() {
+            apply_key(&mut engine, &mut output, ch);
+        }
+        assert_eq!(output.iter().collect::<String>(), "ré");
+
+        backspace(&mut engine, &mut output);
+        assert_eq!(output.iter().collect::<String>(), "r");
+
+        for ch in "epo".chars() {
+            apply_key(&mut engine, &mut output, ch);
+        }
+        assert_eq!(output.iter().collect::<String>(), "repo");
+    }
+
+    #[test]
     fn testWordHistoryIsLimitedToRecentWords() {
         let mut engine = VitypeEngine::new();
         let mut output: Vec<char> = Vec::new();

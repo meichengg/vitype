@@ -1398,15 +1398,69 @@ impl VitypeEngine {
         }
     }
 
+    fn rebuild_current_word_from_raw(&self, raw: &[char]) -> VitypeEngine {
+        let mut engine = VitypeEngine::new();
+        engine.auto_fix_tone = self.auto_fix_tone;
+        engine.tone_placement = self.tone_placement;
+        engine.output_encoding = self.output_encoding;
+        engine.input_method = self.input_method;
+
+        for ch in raw {
+            let input = ch.to_string();
+            let _ = engine.process(&input);
+        }
+
+        engine
+    }
+
+    fn adopt_current_word_state_from(&mut self, other: VitypeEngine) {
+        self.buffer = other.buffer;
+        self.raw_buffer = other.raw_buffer;
+        self.is_foreign_mode = other.is_foreign_mode;
+        self.transforms_locked = other.transforms_locked;
+        self.last_transform_key = other.last_transform_key;
+        self.last_w_transform_kind = other.last_w_transform_kind;
+        self.suppressed_transform_key = other.suppressed_transform_key;
+    }
+
+    fn delete_last_character_in_current_word(&mut self) {
+        if self.buffer.is_empty() {
+            return;
+        }
+
+        let mut desired_buffer = self.buffer.clone();
+        desired_buffer.pop();
+
+        if desired_buffer.is_empty() {
+            self.reset_current_word();
+            return;
+        }
+
+        let raw_len = self.raw_buffer.len();
+        let max_backtrack = raw_len.min(6);
+        for remove_count in 1..=max_backtrack {
+            let candidate_len = raw_len.saturating_sub(remove_count);
+            let candidate_raw = &self.raw_buffer[..candidate_len];
+            let rebuilt = self.rebuild_current_word_from_raw(candidate_raw);
+            if rebuilt.buffer == desired_buffer {
+                self.adopt_current_word_state_from(rebuilt);
+                return;
+            }
+        }
+
+        // Fallback: best-effort single raw deletion.
+        self.buffer = desired_buffer;
+        self.raw_buffer.pop();
+        self.clear_transform_state();
+        self.is_foreign_mode = self.has_multiple_vowel_clusters(self.buffer.len());
+        if self.buffer.is_empty() {
+            self.transforms_locked = false;
+        }
+    }
+
     pub(crate) fn delete_last_character(&mut self) {
         if !self.buffer.is_empty() {
-            self.buffer.pop();
-            self.raw_buffer.pop();
-            self.clear_transform_state();
-            self.is_foreign_mode = self.has_multiple_vowel_clusters(self.buffer.len());
-            if self.buffer.is_empty() {
-                self.transforms_locked = false;
-            }
+            self.delete_last_character_in_current_word();
             return;
         }
 
@@ -1431,15 +1485,7 @@ impl VitypeEngine {
             Some(HistorySegment::Word(_)) => {
                 // Cursor is at the end of a previously committed word (no trailing boundary).
                 if self.restore_last_word_from_history() {
-                    if !self.buffer.is_empty() {
-                        self.buffer.pop();
-                        self.raw_buffer.pop();
-                        self.clear_transform_state();
-                        self.is_foreign_mode = self.has_multiple_vowel_clusters(self.buffer.len());
-                        if self.buffer.is_empty() {
-                            self.transforms_locked = false;
-                        }
-                    }
+                    self.delete_last_character_in_current_word();
                 }
             }
             None => {}

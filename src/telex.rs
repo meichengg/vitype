@@ -214,8 +214,7 @@ impl VitypeEngine {
                 return Some(action);
             }
 
-            if let Some((index, result)) =
-                self.find_last_transformable_vowel(self.buffer.len() - 1)
+            if let Some((index, result)) = self.find_last_transformable_vowel(self.buffer.len() - 1)
             {
                 self.buffer[index] = result;
                 self.buffer.pop();
@@ -261,8 +260,7 @@ impl VitypeEngine {
                 self.last_w_transform_kind = WTransformKind::None;
 
                 if self.auto_fix_tone {
-                    if let Some(action) =
-                        self.reposition_tone_if_needed(false, Some(vowel_offset))
+                    if let Some(action) = self.reposition_tone_if_needed(false, Some(vowel_offset))
                     {
                         return Some(action);
                     }
