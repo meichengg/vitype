@@ -1,4 +1,5 @@
 mod common;
+mod diacritics;
 mod ffi;
 mod telex;
 mod vni;
@@ -349,6 +350,426 @@ impl VitypeEngine {
 
         let delete_count = self.buffer.len().saturating_sub(o_index + 1);
         let output_text = self.buffer_string_from(o_index);
+        Some(KeyTransformAction {
+            delete_count,
+            text: output_text,
+        })
+    }
+
+    fn try_d_stroke(&mut self, store_last_key: char) -> Option<KeyTransformAction> {
+        if self.buffer.len() < 2 {
+            return None;
+        }
+
+        let trigger_index = self.buffer.len() - 1;
+        let mut index = trigger_index;
+        let mut distance = 0;
+        while index > 0 && distance < 4 {
+            index -= 1;
+            distance += 1;
+            if lower_char(self.buffer[index]) == 'd' {
+                let first_d = self.buffer[index];
+                let result = if first_d.is_uppercase() { 'Đ' } else { 'đ' };
+                let delete_count = trigger_index - index;
+
+                self.buffer[index] = result;
+                self.buffer.pop();
+                self.last_transform_key = Some(store_last_key);
+                self.last_w_transform_kind = WTransformKind::None;
+
+                let output_text = self.buffer_string_from(index);
+                return Some(KeyTransformAction {
+                    delete_count,
+                    text: output_text,
+                });
+            }
+        }
+        None
+    }
+
+    fn try_compound_uo_final_consonant_transform(
+        &mut self,
+        trigger_key: char,
+    ) -> Option<KeyTransformAction> {
+        if self.buffer.len() < 4 {
+            return None;
+        }
+
+        let trigger_index = self.buffer.len() - 1;
+        if trigger_index == 0 {
+            return None;
+        }
+        let mut scan_index = trigger_index - 1;
+
+        if is_vowel(self.buffer[scan_index]) {
+            return None;
+        }
+
+        while scan_index > 0 && !is_vowel(self.buffer[scan_index]) {
+            scan_index -= 1;
+        }
+
+        if !is_vowel(self.buffer[scan_index]) {
+            return None;
+        }
+
+        let o_index = scan_index;
+        let o = self.buffer[o_index];
+        if o != 'o' && o != 'O' {
+            return None;
+        }
+        if TONED_TO_BASE.contains_key(&o) {
+            return None;
+        }
+        if o_index == 0 {
+            return None;
+        }
+
+        let u_index = o_index - 1;
+        let u = self.buffer[u_index];
+        if u != 'u' && u != 'U' {
+            return None;
+        }
+        if TONED_TO_BASE.contains_key(&u) {
+            return None;
+        }
+
+        if u_index > 0 {
+            let prev_char = self.buffer[u_index - 1];
+            if prev_char == 'q' || prev_char == 'Q' {
+                return None;
+            }
+        }
+
+        let u_horn = if u.is_uppercase() { 'Ư' } else { 'ư' };
+        let o_horn = if o.is_uppercase() { 'Ơ' } else { 'ơ' };
+
+        self.buffer[u_index] = u_horn;
+        self.buffer[o_index] = o_horn;
+        self.buffer.pop();
+        self.last_transform_key = Some(trigger_key);
+        self.last_w_transform_kind = WTransformKind::CompoundUoFinalConsonantW;
+
+        let delete_count = self.buffer.len() - u_index;
+        let output_text = self.buffer_string_from(u_index);
+        Some(KeyTransformAction {
+            delete_count,
+            text: output_text,
+        })
+    }
+
+    fn try_compound_uoi_transform(&mut self, trigger_key: char) -> Option<KeyTransformAction> {
+        if self.buffer.len() < 4 {
+            return None;
+        }
+
+        // Pattern: u o i key -> ư ơ i (key skips i and applies the uo → ươ compound transform)
+        let trigger_index = self.buffer.len() - 1;
+        let i_index = trigger_index - 1;
+        let o_index = i_index - 1;
+        let u_index = o_index - 1;
+
+        let i = self.buffer[i_index];
+        if lower_char(i) != 'i' {
+            return None;
+        }
+
+        let raw_u = self.buffer[u_index];
+        let (u_base, u_tone) = if let Some((base, tone)) = TONED_TO_BASE.get(&raw_u) {
+            (*base, Some(*tone))
+        } else {
+            (raw_u, None)
+        };
+
+        let raw_o = self.buffer[o_index];
+        let (o_base, o_tone) = if let Some((base, tone)) = TONED_TO_BASE.get(&raw_o) {
+            (*base, Some(*tone))
+        } else {
+            (raw_o, None)
+        };
+
+        let u_base_lower = lower_char(u_base);
+        if (u_base_lower != 'u' && u_base_lower != 'ư') || lower_char(o_base) != 'o' {
+            return None;
+        }
+
+        if u_index > 0 {
+            let prev_char = self.buffer[u_index - 1];
+            if prev_char == 'q' || prev_char == 'Q' {
+                return None;
+            }
+        }
+
+        let u_horn_base = if u_base.is_uppercase() { 'Ư' } else { 'ư' };
+        let o_horn_base = if o_base.is_uppercase() { 'Ơ' } else { 'ơ' };
+
+        let u_horn = match u_tone {
+            Some(tone) => *VOWEL_TO_TONED.get(&u_horn_base)?.get(&tone)?,
+            None => u_horn_base,
+        };
+        let o_horn = match o_tone {
+            Some(tone) => *VOWEL_TO_TONED.get(&o_horn_base)?.get(&tone)?,
+            None => o_horn_base,
+        };
+
+        self.buffer[u_index] = u_horn;
+        self.buffer[o_index] = o_horn;
+        self.buffer.pop();
+        self.last_transform_key = Some(trigger_key);
+        self.last_w_transform_kind = WTransformKind::CompoundUoiw;
+
+        if self.auto_fix_tone {
+            if let Some(action) = self.reposition_tone_if_needed(false, Some(u_index)) {
+                return Some(action);
+            }
+        }
+
+        let delete_count = self.buffer.len() - u_index;
+        let output_text = self.buffer_string_from(u_index);
+        Some(KeyTransformAction {
+            delete_count,
+            text: output_text,
+        })
+    }
+
+    fn try_compound_uow_transform(&mut self, trigger_key: char) -> Option<KeyTransformAction> {
+        if self.buffer.len() < 3 {
+            return None;
+        }
+
+        let trigger_index = self.buffer.len() - 1;
+        let o_index = trigger_index - 1;
+        let u_index = o_index - 1;
+
+        let u = self.buffer[u_index];
+        let o = self.buffer[o_index];
+
+        if (u != 'u' && u != 'U') || (o != 'o' && o != 'O') {
+            return None;
+        }
+
+        if TONED_TO_BASE.contains_key(&u) || TONED_TO_BASE.contains_key(&o) {
+            return None;
+        }
+
+        if u_index > 0 {
+            let prev_char = self.buffer[u_index - 1];
+            if prev_char == 'q' || prev_char == 'Q' {
+                return None;
+            }
+        }
+
+        let u_horn = if u.is_uppercase() { 'Ư' } else { 'ư' };
+        let o_horn = if o.is_uppercase() { 'Ơ' } else { 'ơ' };
+
+        self.buffer[u_index] = u_horn;
+        self.buffer[o_index] = o_horn;
+        self.buffer.pop();
+        self.last_transform_key = Some(trigger_key);
+        self.last_w_transform_kind = WTransformKind::CompoundUow;
+
+        let delete_count = self.buffer.len() - u_index;
+        let output_text = self.buffer_string_from(u_index);
+        Some(KeyTransformAction {
+            delete_count,
+            text: output_text,
+        })
+    }
+
+    fn try_compound_uaw_transform(&mut self, trigger_key: char) -> Option<KeyTransformAction> {
+        if self.buffer.len() < 3 {
+            return None;
+        }
+
+        let trigger_index = self.buffer.len() - 1;
+        let a_index = trigger_index - 1;
+        let u_index = a_index - 1;
+
+        let u = self.buffer[u_index];
+        let a = self.buffer[a_index];
+
+        if (u != 'u' && u != 'U') || (a != 'a' && a != 'A') {
+            return None;
+        }
+
+        if TONED_TO_BASE.contains_key(&u) || TONED_TO_BASE.contains_key(&a) {
+            return None;
+        }
+
+        if u_index > 0 {
+            let prev_char = self.buffer[u_index - 1];
+            if prev_char == 'q' || prev_char == 'Q' {
+                return None;
+            }
+        }
+
+        let u_horn = if u.is_uppercase() { 'Ư' } else { 'ư' };
+        self.buffer[u_index] = u_horn;
+        self.buffer.pop();
+        self.last_transform_key = Some(trigger_key);
+        self.last_w_transform_kind = WTransformKind::CompoundUaw;
+
+        let delete_count = self.buffer.len() - u_index;
+        let output_text = self.buffer_string_from(u_index);
+        Some(KeyTransformAction {
+            delete_count,
+            text: output_text,
+        })
+    }
+
+    fn try_compound_ua_escape(&mut self, suppressed_key: char) -> Option<KeyTransformAction> {
+        if self.buffer.len() < 3 {
+            return None;
+        }
+
+        let trigger_index = self.buffer.len() - 1;
+        let a_index = trigger_index - 1;
+        let u_index = a_index - 1;
+
+        let u_horn = self.buffer[u_index];
+        let a = self.buffer[a_index];
+
+        if (u_horn != 'ư' && u_horn != 'Ư') || (a != 'a' && a != 'A') {
+            return None;
+        }
+
+        let delete_count = trigger_index - u_index;
+        let original_u = if u_horn.is_uppercase() { 'U' } else { 'u' };
+
+        self.buffer[u_index] = original_u;
+        self.clear_last_transform_and_suppress(suppressed_key);
+
+        let output_text = self.buffer_string_from(u_index);
+        Some(KeyTransformAction {
+            delete_count,
+            text: output_text,
+        })
+    }
+
+    fn try_compound_uu_transform(&mut self, trigger_key: char) -> Option<KeyTransformAction> {
+        if self.buffer.len() < 3 {
+            return None;
+        }
+
+        let trigger_index = self.buffer.len() - 1;
+        let last_u_index = trigger_index - 1;
+        let first_u_index = last_u_index - 1;
+
+        let first_u = self.buffer[first_u_index];
+        let last_u = self.buffer[last_u_index];
+
+        if (first_u != 'u' && first_u != 'U') || (last_u != 'u' && last_u != 'U') {
+            return None;
+        }
+
+        if TONED_TO_BASE.contains_key(&first_u) || TONED_TO_BASE.contains_key(&last_u) {
+            return None;
+        }
+
+        if first_u_index > 0 {
+            let prev_char = self.buffer[first_u_index - 1];
+            if prev_char == 'q' || prev_char == 'Q' {
+                return None;
+            }
+        }
+
+        let u_horn = if first_u.is_uppercase() { 'Ư' } else { 'ư' };
+        self.buffer[first_u_index] = u_horn;
+        self.buffer.pop();
+        self.last_transform_key = Some(trigger_key);
+        self.last_w_transform_kind = WTransformKind::None;
+
+        let delete_count = self.buffer.len() - first_u_index;
+        let output_text = self.buffer_string_from(first_u_index);
+        Some(KeyTransformAction {
+            delete_count,
+            text: output_text,
+        })
+    }
+
+    fn try_compound_ou_transform(&mut self, trigger_key: char) -> Option<KeyTransformAction> {
+        if self.buffer.len() < 3 {
+            return None;
+        }
+
+        let trigger_index = self.buffer.len() - 1;
+        let u_index = trigger_index - 1;
+        let o_index = u_index - 1;
+
+        let o = self.buffer[o_index];
+        let u = self.buffer[u_index];
+
+        if (o != 'o' && o != 'O') || (u != 'u' && u != 'U') {
+            return None;
+        }
+
+        if TONED_TO_BASE.contains_key(&o) || TONED_TO_BASE.contains_key(&u) {
+            return None;
+        }
+
+        let u_horn = if u.is_uppercase() { 'Ư' } else { 'ư' };
+        let o_horn = if o.is_uppercase() { 'Ơ' } else { 'ơ' };
+
+        self.buffer[o_index] = u_horn;
+        self.buffer[u_index] = o_horn;
+        self.buffer.pop();
+        self.last_transform_key = Some(trigger_key);
+        self.last_w_transform_kind = WTransformKind::CompoundUow;
+
+        let delete_count = self.buffer.len() - o_index;
+        let output_text = self.buffer_string_from(o_index);
+        Some(KeyTransformAction {
+            delete_count,
+            text: output_text,
+        })
+    }
+
+    fn try_compound_uou_transform(&mut self, trigger_key: char) -> Option<KeyTransformAction> {
+        if self.buffer.len() < 4 {
+            return None;
+        }
+
+        let trigger_index = self.buffer.len() - 1;
+        let last_u_index = trigger_index - 1;
+        let o_index = last_u_index - 1;
+        let first_u_index = o_index - 1;
+
+        let first_u = self.buffer[first_u_index];
+        let o = self.buffer[o_index];
+        let last_u = self.buffer[last_u_index];
+
+        if (first_u != 'u' && first_u != 'U')
+            || (o != 'o' && o != 'O')
+            || (last_u != 'u' && last_u != 'U')
+        {
+            return None;
+        }
+
+        if TONED_TO_BASE.contains_key(&first_u)
+            || TONED_TO_BASE.contains_key(&o)
+            || TONED_TO_BASE.contains_key(&last_u)
+        {
+            return None;
+        }
+
+        if first_u_index > 0 {
+            let prev_char = self.buffer[first_u_index - 1];
+            if prev_char == 'q' || prev_char == 'Q' {
+                return None;
+            }
+        }
+
+        let u_horn = if first_u.is_uppercase() { 'Ư' } else { 'ư' };
+        let o_horn = if o.is_uppercase() { 'Ơ' } else { 'ơ' };
+
+        self.buffer[first_u_index] = u_horn;
+        self.buffer[o_index] = o_horn;
+        self.buffer.pop();
+        self.last_transform_key = Some(trigger_key);
+        self.last_w_transform_kind = WTransformKind::CompoundUow;
+
+        let delete_count = self.buffer.len() - first_u_index;
+        let output_text = self.buffer_string_from(first_u_index);
         Some(KeyTransformAction {
             delete_count,
             text: output_text,
@@ -820,7 +1241,7 @@ impl VitypeEngine {
         max_distance: usize,
     ) -> Option<usize> {
         let key_lower = lower_char(key);
-        let matches_key = |base_lower: char| match key_lower {
+        let matches_key = |_: char, base_lower: char| match key_lower {
             // Telex "circumflex" keys can override prior w-transforms on the same vowel:
             // - a key targets a/ă
             // - o key targets o/ơ
@@ -828,11 +1249,33 @@ impl VitypeEngine {
             'o' => base_lower == 'o' || base_lower == 'ơ',
             _ => base_lower == key_lower,
         };
-        let mut index = before;
-        let mut distance = 0;
+        let allow_adjacent_skip = |base_lower: char| matches!(base_lower, 'i' | 'y' | 'u');
+
+        self.find_last_vowel_index_with_predicate(
+            before,
+            max_distance,
+            allow_adjacent_skip,
+            matches_key,
+        )
+    }
+
+    fn find_last_vowel_index_with_predicate<F, G>(
+        &self,
+        before: usize,
+        max_distance: usize,
+        allow_adjacent_skip: G,
+        matches: F,
+    ) -> Option<usize>
+    where
+        F: Fn(char, char) -> bool,
+        G: Fn(char) -> bool,
+    {
         if before == 0 {
             return None;
         }
+
+        let mut index = before;
+        let mut distance = 0;
         let adjacent_index = before - 1;
 
         while index > 0 && distance < max_distance {
@@ -842,10 +1285,8 @@ impl VitypeEngine {
             if is_vowel(ch) {
                 let base_vowel = self.get_base_vowel(ch);
                 let base_lower = lower_char(base_vowel);
-                if !matches_key(base_lower) {
-                    if index == adjacent_index
-                        && (base_lower == 'i' || base_lower == 'y' || base_lower == 'u')
-                    {
+                if !matches(ch, base_lower) {
+                    if index == adjacent_index && allow_adjacent_skip(base_lower) {
                         continue;
                     }
                     return None;
