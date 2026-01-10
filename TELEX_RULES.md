@@ -1,18 +1,29 @@
 # Vietnamese Telex Input Method Rules
 
-This document describes the Telex input method rules implemented in vnkey, a Vietnamese IME for macOS.
+This document describes the Telex input method rules implemented in **ViType-core** (`VitypeEngine`).
+
+## Code Map (Source of Truth)
+
+- Engine entrypoint and shared logic: `src/lib.rs` (`VitypeEngine::process`, tone placement, foreign mode, history)
+- Telex-specific behavior: `src/telex.rs` (Telex word boundaries, Telex escape handling)
+- Shared diacritic helpers: `src/diacritics.rs` (shape + tone application/escape)
+- Shared tone tables: `src/common.rs` (`VOWEL_TO_TONED`, `TONED_TO_BASE`)
 
 ## Overview
 
 **Telex** is a Vietnamese input method that uses letter combinations to produce Vietnamese characters with diacritics and tone marks. Unlike VNI (which uses numbers), Telex uses only letters, making it faster for touch typists.
 
-### How vnkey Works
+### How the Engine Works (Host-Agnostic)
 
-1. **Keystroke interception**: Uses macOS CGEvent tapping to intercept keystrokes
-2. **Buffer-based processing**: Maintains a buffer of the current word being typed
-3. **Transform actions**: Returns `KeyTransformAction { delete_count, text }` to replace characters
+1. **Keystroke interception (host app)**: The host intercepts keystrokes and calls the engine per key
+2. **Buffer-based processing**: The engine maintains a buffer of the current word being typed
+3. **Transform actions**: The engine returns `KeyTransformAction { delete_count, text }` to rewrite output
    - `delete_count`: Number of characters to delete (backspaces)
    - `text`: Replacement text to insert
+
+**Note (important for implementers)**: When the engine returns a `KeyTransformAction`, the *current key* is treated as consumed (i.e., you typically do **not** also insert the raw key). `delete_count` applies to the already-emitted output before inserting `text`.
+
+**Word boundaries (Telex)**: whitespace, ASCII punctuation, and ASCII digits. (Digits are boundaries in Telex; they are *not* boundaries in VNI.)
 
 ---
 
@@ -66,10 +77,12 @@ These letters serve dual purposes: they act as **consonants** when they appear b
 
 | Letter | Before Vowel (Consonant) | After Vowel (Tone/Transform) |
 |--------|--------------------------|------------------------------|
-| `z`    | `za` → za                | `az` → a (removes tone)      |
+| `z`    | `za` → za                | `asz` → a (remove tone)      |
 | `j`    | `ja` → ja                | `aj` → ạ (nặng tone)         |
 | `f`    | `fa` → fa                | `af` → à (huyền tone)        |
 | `w`    | (special, see below)     | `aw` → ă (breve transform)   |
+
+**Note**: Telex `z` only removes tone when there is an existing tone to remove; otherwise it is treated as a literal `z` (so you can type words containing `z`).
 
 #### Z as Consonant
 
@@ -143,7 +156,7 @@ Foreign consonants can be combined with w transforms on following vowels:
 When a word is detected as foreign (invalid Vietnamese syllable), the engine enters **foreign mode** for the rest of the word. While in foreign mode:
 
 - All transform keys (`dd`, tone keys, `w` compounds) are treated as literal characters.
-- Transform behavior resumes after a word boundary (space or punctuation).
+- Transform behavior resumes after a word boundary (whitespace, punctuation, or digit).
 
 ---
 
@@ -158,7 +171,7 @@ Typing a vowel twice produces the circumflex version:
 | `aa`  | â      | a with circumflex |
 | `AA`  | Â      | |
 | `Aa`  | Â      | Case follows first vowel |
-| `aA`  | Â      | Second vowel uppercase → result uppercase |
+| `aA`  | â      | Case follows first vowel |
 | `ee`  | ê      | e with circumflex |
 | `EE`  | Ê      | |
 | `oo`  | ô      | o with circumflex |
@@ -795,13 +808,13 @@ The case of `đ` is determined by the **first** `d`:
 
 ### 7.2 Vowel Transforms
 
-The case follows the **base vowel** being transformed, but the **transform key** can override to uppercase:
+The case follows the **base vowel** being transformed (i.e., the vowel already in the buffer). The transform key’s own case is ignored for these transforms.
 
 | Input | Output | Rule |
 |-------|--------|------|
 | `aa`  | â      | Lowercase base |
 | `AA`  | Â      | Uppercase base |
-| `aA`  | Â      | Uppercase transform key → uppercase result |
+| `aA`  | â      | Lowercase base (second key case ignored) |
 | `Aa`  | Â      | Uppercase base |
 
 ### 7.3 Tone Marks
@@ -817,6 +830,8 @@ Tone marks preserve the case of the target vowel:
 ---
 
 ## 8. Implementation Notes
+
+This section is descriptive and may lag behind refactors. When in doubt, treat the **behavioral rules** above as normative and consult the **Code Map** at the top of this document for the current implementation.
 
 ### 8.1 Key Data Structures
 

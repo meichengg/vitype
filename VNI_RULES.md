@@ -2,6 +2,13 @@
 
 This document describes the VNI input method rules for ViType, a Vietnamese IME.
 
+## Code Map (Source of Truth)
+
+- Engine entrypoint and shared logic: `src/lib.rs` (`VitypeEngine::process`, tone placement, foreign mode, history)
+- VNI-specific behavior: `src/vni.rs` (VNI word boundaries, VNI escape handling, key mapping)
+- Shared diacritic helpers: `src/diacritics.rs` (shape + tone application/escape)
+- Shared tone tables: `src/common.rs` (`VOWEL_TO_TONED`, `TONED_TO_BASE`)
+
 ## Overview
 
 **VNI** (Vietnamese Input) is a Vietnamese input method that uses **number keys** to produce Vietnamese characters with diacritics and tone marks. Unlike Telex (which uses letters), VNI uses digits 0-9, making it intuitive for users who prefer numeric shortcuts.
@@ -23,13 +30,15 @@ This document describes the VNI input method rules for ViType, a Vietnamese IME.
 
 ### How ViType Works
 
-1. **Keystroke interception**: Uses macOS CGEvent tapping to intercept keystrokes
-2. **Buffer-based processing**: Maintains a buffer of the current word being typed
-3. **Transform actions**: Returns `KeyTransformAction { delete_count, text }` to replace characters
+1. **Keystroke interception (host app)**: The host intercepts keystrokes and calls the engine per key
+2. **Buffer-based processing**: The engine maintains a buffer of the current word being typed
+3. **Transform actions**: The engine returns `KeyTransformAction { delete_count, text }` to rewrite output
    - `delete_count`: Number of characters to delete (backspaces)
    - `text`: Replacement text to insert
 
 **Important**: In VNI mode, digit keys (0-9) are **not** word boundaries - they are transform keys.
+
+**Note (important for implementers)**: When the engine returns a `KeyTransformAction`, the *current key* is treated as consumed (i.e., you typically do **not** also insert the raw key). `delete_count` applies to the already-emitted output before inserting `text`.
 
 ---
 
@@ -80,7 +89,7 @@ The `d...9` transform works even when **other characters separate d and 9**, as 
 When a word is detected as foreign (invalid Vietnamese syllable), the engine enters **foreign mode** for the rest of the word. While in foreign mode:
 
 - All transform keys (`d9`, tone keys `0–5`, and vowel keys `6–8`) are treated as literal characters.
-- Transform behavior resumes after a word boundary (space or punctuation). In foreign mode, digits also act as word boundaries.
+- Transform behavior resumes after a word boundary (space or punctuation). (Digits are **not** treated as word boundaries in VNI, even in foreign mode.)
 
 ---
 
@@ -114,7 +123,7 @@ The `7` key adds a horn to vowels:
 
 **Note**: `7` only transforms `o`, `u`. For other vowels, `7` outputs as a literal character.
 
-**Special behavior**: The `7` key finds the **last transformable vowel** in the buffer (o/u and their horn/toned variants), skipping non-transformable vowels like `i` or `y`. This allows typing:
+**Special behavior**: The `7` key finds the **last transformable vowel** in the buffer (o/u and their horn/toned variants). For ergonomics, it can skip a single **adjacent** vowel that `7` cannot transform (commonly `i`, `y`, or `a`). This allows typing:
 
 - `oi7` → `ơi`
 - `ui7` → `ưi`
@@ -636,6 +645,8 @@ Tone marks preserve the case of the target vowel:
 ---
 
 ## 8. Implementation Notes
+
+This section is descriptive and may lag behind refactors. When in doubt, treat the **behavioral rules** above as normative and consult the **Code Map** at the top of this document for the current implementation.
 
 ### 8.1 VNI-Specific Data Structures
 
