@@ -44,9 +44,11 @@ This document describes the VNI input method rules for ViType, a Vietnamese IME.
 
 **Implementation**: When `9` is typed after `d`, delete 1 character and output `đ`/`Đ`.
 
+**Scope**: This transform only applies when the `d` starts the word. Mid-word `d9` stays literal (e.g., `ad9` → `ad9`).
+
 ### 1.2 Free Transform (Non-Adjacent D)
 
-The `d...9` transform works even when **other characters separate d and 9**, as long as the `d` is within 4 characters. This allows more flexible typing:
+The `d...9` transform works even when **other characters separate d and 9**, as long as the `d` is within 4 characters and at the start of the word. This allows more flexible typing:
 
 | Input | Buffer State | Output | Description |
 |-------|--------------|--------|-------------|
@@ -69,6 +71,16 @@ The `d...9` transform works even when **other characters separate d and 9**, as 
 **Limitations**:
 - Maximum search distance: 4 characters
 - The character must be `d`/`D`, not already transformed `đ`/`Đ`
+- The `d` must start the word
+
+---
+
+## 1.3 Foreign Mode (Literal Transforms)
+
+When a word is detected as foreign (invalid Vietnamese syllable), the engine enters **foreign mode** for the rest of the word. While in foreign mode:
+
+- All transform keys (`d9`, tone keys `0–5`, and vowel keys `6–8`) are treated as literal characters.
+- Transform behavior resumes after a word boundary (space or punctuation). In foreign mode, digits also act as word boundaries.
 
 ---
 

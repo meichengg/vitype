@@ -746,6 +746,13 @@ mod repeated_escape_tests {
     }
 
     #[test]
+    fn testConsonantEscapeDDMidWordLiteral() {
+        // dd should only transform when the first d starts the word.
+        assert_eq!(apply_input("add"), "add");
+        assert_eq!(apply_input("adD"), "adD");
+    }
+
+    #[test]
     fn testRepeatedConsonantEscapeDDUppercase() {
         assert_eq!(apply_input("DD"), "Đ");
         assert_eq!(apply_input("DDD"), "DD");
@@ -772,6 +779,9 @@ mod repeated_escape_tests {
         assert_eq!(apply_input("tww"), "tw");
         assert_eq!(apply_input("twww"), "tww");
         assert_eq!(apply_input("twwww"), "twww");
+
+        assert_eq!(apply_input("device"), "device");
+        assert_eq!(apply_input("devicesaa"), "devicesaa");
     }
 
     // MARK: - Repeated Escape in Real Word Context
@@ -831,6 +841,15 @@ mod repeated_escape_tests {
         // After escaping dd, typing different key works normally
         assert_eq!(apply_input("ddda"), "dda"); // After escape, a just appends
         assert_eq!(apply_input("ddde"), "dde"); // After escape, e just appends
+    }
+
+    // MARK: - Foreign Mode Literal Transforms
+
+    #[test]
+    fn testForeignModeLiteralTransformKeys() {
+        assert_eq!(apply_input("abes"), "abes");
+        assert_eq!(apply_input("abew"), "abew");
+        assert_eq!(apply_input("abedd"), "abedd");
     }
 
     // MARK: - Edge Cases: Re-transformation After Word Boundary

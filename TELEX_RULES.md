@@ -29,9 +29,11 @@ This document describes the Telex input method rules implemented in vnkey, a Vie
 
 **Implementation**: When second `d` is typed, delete 1 character and output `đ`/`Đ`.
 
+**Scope**: This transform only applies when the first `d` starts the word. Mid-word `dd` stays literal (e.g., `add` → `add`).
+
 ### 1.1.1 Free Transform (Non-Adjacent D)
 
-The `dd` → `đ` transform works even when **other characters separate the two d's**, as long as the first `d` is within 4 characters. This allows more flexible typing:
+The `dd` → `đ` transform works even when **other characters separate the two d's**, as long as the first `d` is within 4 characters and at the start of the word. This allows more flexible typing:
 
 | Input | Buffer State | Output | Description |
 |-------|--------------|--------|-------------|
@@ -54,6 +56,7 @@ The `dd` → `đ` transform works even when **other characters separate the two 
 **Limitations**:
 - Maximum search distance: 4 characters
 - The first character must be `d`/`D`, not already transformed `đ`/`Đ`
+- The first `d` must start the word
 
 ### 1.2 Foreign Consonants (z, w, j, f)
 
@@ -132,6 +135,15 @@ Foreign consonants can be combined with w transforms on following vowels:
 | `zow` | zơ     | z consonant + ơ |
 | `juw` | jư     | j consonant + ư |
 | `fuw` | fư     | f consonant + ư |
+
+---
+
+## 1.3 Foreign Mode (Literal Transforms)
+
+When a word is detected as foreign (invalid Vietnamese syllable), the engine enters **foreign mode** for the rest of the word. While in foreign mode:
+
+- All transform keys (`dd`, tone keys, `w` compounds) are treated as literal characters.
+- Transform behavior resumes after a word boundary (space or punctuation).
 
 ---
 

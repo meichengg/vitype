@@ -64,7 +64,7 @@ mod key_transformer_tests {
 
         assert_eq!(transformer.process("a"), None);
         assert_eq!(transformer.process("d"), None);
-        assert_eq!(transformer.process("d"), Some(action(1, "đ")));
+        assert_eq!(transformer.process("d"), None);
     }
 
     // MARK: - Vowel Transform Tests (aa, ee, oo)
@@ -443,6 +443,8 @@ mod key_transformer_tests {
         let _ = transformer.process("a");
         let _ = transformer.process("s"); // tá
         assert_eq!(transformer.process("s"), Some(action(1, "as")));
+
+        assert_eq!(apply_input("ass"), "as")
     }
 
     #[test]

@@ -368,6 +368,9 @@ impl VitypeEngine {
             index -= 1;
             distance += 1;
             if lower_char(self.buffer[index]) == 'd' {
+                if index != 0 {
+                    return None;
+                }
                 let first_d = self.buffer[index];
                 let result = if first_d.is_uppercase() { 'Đ' } else { 'đ' };
                 let delete_count = trigger_index - index;

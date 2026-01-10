@@ -58,12 +58,17 @@ mod key_transformer_tests {
     }
 
     #[test]
-    fn testConsonantDDAfterOtherChars() {
+    fn testEscapeToneBasic() {
         let mut transformer = create_vni_engine();
 
         assert_eq!(transformer.process("a"), None);
-        assert_eq!(transformer.process("d"), None);
-        assert_eq!(transformer.process("9"), Some(action(1, "đ")));
+        assert_eq!(transformer.process("1"), Some(action(1, "á")));
+        assert_eq!(transformer.process("1"), Some(action(1, "a1")));
+    }
+
+    #[test]
+    fn testConsonantDDAfterOtherChars() {
+        assert_eq!(apply_vni_input("ad9"), "ad9");
     }
 
     // MARK: - Vowel Transform Tests (aa, ee, oo)

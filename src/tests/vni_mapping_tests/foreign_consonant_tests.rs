@@ -670,6 +670,12 @@ mod repeated_escape_tests {
     }
 
     #[test]
+    fn testConsonantEscapeDDMidWordLiteral() {
+        assert_eq!(apply_vni_input("ad9"), "ad9");
+        assert_eq!(apply_vni_input("ad9d"), "ad9d");
+    }
+
+    #[test]
     fn testRepeatedConsonantEscapeDDUppercase() {
         assert_eq!(apply_vni_input("D9"), "Đ");
         assert_eq!(apply_vni_input("D99"), "D9");
@@ -692,6 +698,9 @@ mod repeated_escape_tests {
         assert_eq!(apply_vni_input("tu77"), "tu7");
         assert_eq!(apply_vni_input("tu777"), "tu77");
         assert_eq!(apply_vni_input("tu7777"), "tu777");
+
+        assert_eq!(apply_vni_input("device"), "device");
+        assert_eq!(apply_vni_input("device1a6"), "device1a6");
     }
 
     #[test]
@@ -740,6 +749,13 @@ mod repeated_escape_tests {
         assert_eq!(apply_vni_input("ta112"), "ta12"); // ta1 + 2 (literal), not tà1
         assert_eq!(apply_vni_input("a661"), "a61"); // a6 + 1 (literal), not ấ
         assert_eq!(apply_vni_input("d99a1"), "d9a1"); // d9 escaped, then 1 stays literal
+    }
+
+    #[test]
+    fn testForeignModeLiteralTransformKeys() {
+        assert_eq!(apply_vni_input("aba1"), "aba1");
+        assert_eq!(apply_vni_input("aba6"), "aba6");
+        assert_eq!(apply_vni_input("abad9"), "abad9");
     }
 
     #[test]
