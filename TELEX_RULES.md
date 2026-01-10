@@ -249,6 +249,7 @@ Additional ergonomic variants are supported:
 - `uuw` → `ưu` (e.g., `huuw` → `hưu`)
 - `ouw` → `ươ` (e.g., `houw` → `hươ`)
 - `uouw` → `ươu` (e.g., `huouw` → `hươu`)
+- Works even if the first `u` is already `ư` from an earlier transform (e.g., `huwouw` / `hwouw` → `hươu`)
 - `uaw` → `ưa` (e.g., `muaw` → `mưa`)
 - `uwa` → `ưa` (e.g., `muwa` → `mưa`)
 
@@ -270,7 +271,8 @@ For convenience, vnkey also supports typing the final consonant **before** `w` a
 
 **Notes / limitations**:
 - Only applies when the last vowel before the final consonant cluster is `o` and it is immediately preceded by `u` (i.e., `uo...w`)
-- Same `qu` and “already toned” limitations as `uow`
+- Same `qu` limitation as `uow`
+- If a tone key was typed earlier (e.g., `uocjw` / `duocjw`), the compound still applies and preserves the tone on `o` when converting to `ơ`
 
 ### 2.3 W-Transform on Already-Toned Vowels
 

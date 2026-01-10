@@ -219,6 +219,7 @@ For convenience, ViType supports typing the final consonant **before** `7` and s
 |-------|--------|-------------|
 | `uoc7` | ươc | `7` reaches back over the final consonant |
 | `uoc71` | ước | Tone applies to `ơ` |
+| `uoc57` | ược | Tone can be typed before `7` and is preserved |
 | `d9uoc7` | đươc | Works with consonant prefix |
 
 ### 2.8 Transforms on Already-Toned Vowels

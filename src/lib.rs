@@ -417,23 +417,33 @@ impl VitypeEngine {
         }
 
         let o_index = scan_index;
-        let o = self.buffer[o_index];
-        if o != 'o' && o != 'O' {
-            return None;
-        }
-        if TONED_TO_BASE.contains_key(&o) {
-            return None;
-        }
         if o_index == 0 {
             return None;
         }
 
-        let u_index = o_index - 1;
-        let u = self.buffer[u_index];
-        if u != 'u' && u != 'U' {
+        let raw_o = self.buffer[o_index];
+        let (o_base, o_tone) = if let Some((base, tone)) = TONED_TO_BASE.get(&raw_o) {
+            (*base, Some(*tone))
+        } else {
+            (raw_o, None)
+        };
+        if lower_char(o_base) != 'o' {
             return None;
         }
-        if TONED_TO_BASE.contains_key(&u) {
+
+        let u_index = o_index - 1;
+        let raw_u = self.buffer[u_index];
+        let (u_base, u_tone) = if let Some((base, tone)) = TONED_TO_BASE.get(&raw_u) {
+            (*base, Some(*tone))
+        } else {
+            (raw_u, None)
+        };
+        if u_tone.is_some() {
+            return None;
+        }
+
+        let u_base_lower = lower_char(u_base);
+        if u_base_lower != 'u' && u_base_lower != 'ư' {
             return None;
         }
 
@@ -444,8 +454,12 @@ impl VitypeEngine {
             }
         }
 
-        let u_horn = if u.is_uppercase() { 'Ư' } else { 'ư' };
-        let o_horn = if o.is_uppercase() { 'Ơ' } else { 'ơ' };
+        let u_horn = if u_base.is_uppercase() { 'Ư' } else { 'ư' };
+        let o_horn_base = if o_base.is_uppercase() { 'Ơ' } else { 'ơ' };
+        let o_horn = match o_tone {
+            Some(tone) => *VOWEL_TO_TONED.get(&o_horn_base)?.get(&tone)?,
+            None => o_horn_base,
+        };
 
         self.buffer[u_index] = u_horn;
         self.buffer[o_index] = o_horn;
@@ -737,20 +751,39 @@ impl VitypeEngine {
         let o_index = last_u_index - 1;
         let first_u_index = o_index - 1;
 
-        let first_u = self.buffer[first_u_index];
-        let o = self.buffer[o_index];
-        let last_u = self.buffer[last_u_index];
+        let raw_first_u = self.buffer[first_u_index];
+        let raw_o = self.buffer[o_index];
+        let raw_last_u = self.buffer[last_u_index];
 
-        if (first_u != 'u' && first_u != 'U')
-            || (o != 'o' && o != 'O')
-            || (last_u != 'u' && last_u != 'U')
+        let (first_u_base, first_u_tone) =
+            if let Some((base, tone)) = TONED_TO_BASE.get(&raw_first_u) {
+                (*base, Some(*tone))
+            } else {
+                (raw_first_u, None)
+            };
+
+        let (o_base, o_tone) = if let Some((base, tone)) = TONED_TO_BASE.get(&raw_o) {
+            (*base, Some(*tone))
+        } else {
+            (raw_o, None)
+        };
+
+        let (last_u_base, last_u_tone) = if let Some((base, tone)) = TONED_TO_BASE.get(&raw_last_u)
         {
+            (*base, Some(*tone))
+        } else {
+            (raw_last_u, None)
+        };
+
+        // Keep existing behavior: this compound doesn't apply if any vowel already has a tone.
+        if first_u_tone.is_some() || o_tone.is_some() || last_u_tone.is_some() {
             return None;
         }
 
-        if TONED_TO_BASE.contains_key(&first_u)
-            || TONED_TO_BASE.contains_key(&o)
-            || TONED_TO_BASE.contains_key(&last_u)
+        let first_u_base_lower = lower_char(first_u_base);
+        if (first_u_base_lower != 'u' && first_u_base_lower != 'ư')
+            || lower_char(o_base) != 'o'
+            || lower_char(last_u_base) != 'u'
         {
             return None;
         }
@@ -762,8 +795,12 @@ impl VitypeEngine {
             }
         }
 
-        let u_horn = if first_u.is_uppercase() { 'Ư' } else { 'ư' };
-        let o_horn = if o.is_uppercase() { 'Ơ' } else { 'ơ' };
+        let u_horn = if first_u_base.is_uppercase() {
+            'Ư'
+        } else {
+            'ư'
+        };
+        let o_horn = if o_base.is_uppercase() { 'Ơ' } else { 'ơ' };
 
         self.buffer[first_u_index] = u_horn;
         self.buffer[o_index] = o_horn;

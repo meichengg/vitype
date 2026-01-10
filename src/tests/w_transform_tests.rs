@@ -638,6 +638,14 @@ mod compound_uow_transform_tests {
         assert_eq!(result, "được");
     }
 
+    #[test]
+    fn testWordDuocToneBeforeW() {
+        // Regression: tone typed before w should still produce "ươ" and preserve tone.
+        assert_eq!(apply_input("duocjw"), "dược");
+        assert_eq!(apply_input("dduocjw"), "được");
+        assert_eq!(apply_input("uocjw"), "ược");
+    }
+
     // MARK: - UOCW Pattern Tests (similar to UOUW)
 
     #[test]
@@ -758,6 +766,10 @@ mod compound_uow_transform_tests {
     fn testWordHuouWithTone() {
         let result = apply_input("huouw");
         assert_eq!(result, "hươu");
+
+        // Regressions: pre-horned u (via standalone w or uw) must still form "hươu".
+        assert_eq!(apply_input("hwouw"), "hươu");
+        assert_eq!(apply_input("huwouw"), "hươu");
 
         let r1 = apply_input("houwu");
         assert_eq!(r1, "hươu");
