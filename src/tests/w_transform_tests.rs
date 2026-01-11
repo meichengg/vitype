@@ -579,22 +579,21 @@ mod compound_uow_transform_tests {
         assert_eq!(result, "tươ");
     }
 
-    // MARK: - UOW vs Toned O (No Transform)
+    // MARK: - UOW with Pre-Typed Tones
 
     #[test]
     fn testUOSThenW() {
-        // "uos" → "úo" (tone on u, 2 vowels → 1st), then "w" → "úơ" (w transforms o to ơ)
-        // The tone stays on ú because we don't auto-reposition on w transform currently
+        // "uos" → "úo" (tone on u, 2 vowels → 1st), then "w" compounds uo → ươ and
+        // preserves the tone on ơ.
         let result = apply_input("uosw");
-        assert_eq!(result, "úơ");
+        assert_eq!(result, "ướ");
     }
 
     #[test]
-    fn testTonedUONoCompound() {
-        // If either u or o is toned, compound transform doesn't apply
-        // "uf" → tone on u → "ù", then "o" → "ùo", then "w" transforms o to ơ
+    fn testTonedUOCompound() {
+        // "uf" → tone on u → "ù", then "o" → "ùo", then "w" compounds uo → ươ
         let result = apply_input("ufow");
-        assert_eq!(result, "ùơ"); // u was toned, so uow compound doesn't apply, ow→ơ still works
+        assert_eq!(result, "ườ");
     }
 
     #[test]
@@ -636,6 +635,13 @@ mod compound_uow_transform_tests {
         // "dduowjc" → "được" (with nặng tone)
         let result = apply_input("dduowjc");
         assert_eq!(result, "được");
+    }
+
+    #[test]
+    fn testWordHufowToneBeforeW() {
+        // Regression: tone typed before w should still land on ơ.
+        assert_eq!(apply_input("hufow"), "hườ");
+        assert_eq!(apply_input("hufowu"), "hườu");
     }
 
     #[test]

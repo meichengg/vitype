@@ -438,7 +438,12 @@ impl VitypeEngine {
         } else {
             (raw_u, None)
         };
-        if u_tone.is_some() {
+
+        let tone_count = [u_tone, o_tone]
+            .iter()
+            .filter(|tone| tone.is_some())
+            .count();
+        if tone_count > 1 {
             return None;
         }
 
@@ -456,7 +461,7 @@ impl VitypeEngine {
 
         let u_horn = if u_base.is_uppercase() { 'Ư' } else { 'ư' };
         let o_horn_base = if o_base.is_uppercase() { 'Ơ' } else { 'ơ' };
-        let o_horn = match o_tone {
+        let o_horn = match o_tone.or(u_tone) {
             Some(tone) => *VOWEL_TO_TONED.get(&o_horn_base)?.get(&tone)?,
             None => o_horn_base,
         };
@@ -558,14 +563,30 @@ impl VitypeEngine {
         let o_index = trigger_index - 1;
         let u_index = o_index - 1;
 
-        let u = self.buffer[u_index];
-        let o = self.buffer[o_index];
+        let raw_u = self.buffer[u_index];
+        let raw_o = self.buffer[o_index];
 
-        if (u != 'u' && u != 'U') || (o != 'o' && o != 'O') {
+        let (u_base, u_tone) = if let Some((base, tone)) = TONED_TO_BASE.get(&raw_u) {
+            (*base, Some(*tone))
+        } else {
+            (raw_u, None)
+        };
+        let (o_base, o_tone) = if let Some((base, tone)) = TONED_TO_BASE.get(&raw_o) {
+            (*base, Some(*tone))
+        } else {
+            (raw_o, None)
+        };
+
+        let tone_count = [u_tone, o_tone]
+            .iter()
+            .filter(|tone| tone.is_some())
+            .count();
+        if tone_count > 1 {
             return None;
         }
 
-        if TONED_TO_BASE.contains_key(&u) || TONED_TO_BASE.contains_key(&o) {
+        let u_base_lower = lower_char(u_base);
+        if (u_base_lower != 'u' && u_base_lower != 'ư') || lower_char(o_base) != 'o' {
             return None;
         }
 
@@ -576,8 +597,12 @@ impl VitypeEngine {
             }
         }
 
-        let u_horn = if u.is_uppercase() { 'Ư' } else { 'ư' };
-        let o_horn = if o.is_uppercase() { 'Ơ' } else { 'ơ' };
+        let u_horn = if u_base.is_uppercase() { 'Ư' } else { 'ư' };
+        let o_horn_base = if o_base.is_uppercase() { 'Ơ' } else { 'ơ' };
+        let o_horn = match o_tone.or(u_tone) {
+            Some(tone) => *VOWEL_TO_TONED.get(&o_horn_base)?.get(&tone)?,
+            None => o_horn_base,
+        };
 
         self.buffer[u_index] = u_horn;
         self.buffer[o_index] = o_horn;

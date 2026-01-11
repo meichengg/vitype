@@ -214,12 +214,12 @@ Additional ergonomic variants:
 | `ua7` | ưa     | e.g., `mua7` → `mưa` |
 | `u7a` | ưa     | e.g., `mu7a` → `mưa` |
 
-Tone keys typed before the compound `7` still land on `ơ` (e.g., `huo1u7` / `hu71ou7` → `hướu`).
+Tone keys typed before the compound `7` still land on `ơ` (e.g., `hu2o7` → `hườ`, `huo1u7` / `hu71ou7` → `hướu`).
 
 **Escape**: `uo77` → `uo7`, `uoi77` → `uoi7`, `u7a7` → `ua7`
 
 **Limitations**:
-- Does not apply if `u` or `o` already has a tone mark (e.g., `u2o7` → `ùơ`)
+- If both `u` and `o` already have tone marks, the compound does not apply (ambiguous).
 - Does not apply when `u` is part of the `qu` consonant cluster (e.g., `quo7` → `quơ`, `qua8` → `quă`)
 
 ### 2.7 UO + Final Consonant + 7 → ƯƠ + Final Consonant

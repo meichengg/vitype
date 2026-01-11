@@ -576,22 +576,21 @@ mod compound_uow_transform_tests {
         assert_eq!(result, "tươ");
     }
 
-    // MARK: - UOW vs Toned O (No Transform)
+    // MARK: - UOW with Pre-Typed Tones
 
     #[test]
     fn testUOSThenW() {
-        // "uos" → "úo" (tone on u, 2 vowels → 1st), then "w" → "úơ" (w transforms o to ơ)
-        // The tone stays on ú because we don't auto-reposition on w transform currently
+        // "u1o" → "úo" (tone on u, 2 vowels → 1st), then "7" compounds uo → ươ and
+        // preserves the tone on ơ.
         let result = apply_vni_input("u1o7");
-        assert_eq!(result, "uớ");
+        assert_eq!(result, "ướ");
     }
 
     #[test]
-    fn testTonedUONoCompound() {
-        // If either u or o is toned, compound transform doesn't apply
-        // "uf" → tone on u → "ù", then "o" → "ùo", then "w" transforms o to ơ
+    fn testTonedUOCompound() {
+        // "u2o" → "ùo", then "7" compounds uo → ươ and preserves the tone on ơ.
         let result = apply_vni_input("u2o7");
-        assert_eq!(result, "uờ"); // u was toned, so uow compound doesn't apply, ow→ơ still works
+        assert_eq!(result, "ườ");
     }
 
     #[test]
@@ -641,6 +640,13 @@ mod compound_uow_transform_tests {
         assert_eq!(apply_vni_input("duoc57"), "dược");
         assert_eq!(apply_vni_input("d9uoc57"), "được");
         assert_eq!(apply_vni_input("uoc57"), "ược");
+    }
+
+    #[test]
+    fn testWordHufowToneBefore7() {
+        // Regression: tone typed before 7 should still land on ơ.
+        assert_eq!(apply_vni_input("hu2o7"), "hườ");
+        assert_eq!(apply_vni_input("hu2o7u"), "hườu");
     }
 
     // MARK: - UOCW Pattern Tests (similar to UOUW)

@@ -548,7 +548,7 @@ mod key_transformer_tests {
 
         let _ = transformer.process("o");
         let ow_action = transformer.process("w"); // ngươ
-        assert_eq!(ow_action, Some(action(1, "ơ")));
+        assert_eq!(ow_action, Some(action(2, "ươ")));
 
         let _ = transformer.process("i"); // ngươi
                                           // ơ is special vowel → tone goes on ơ (not i)
@@ -568,7 +568,7 @@ mod key_transformer_tests {
 
         let _ = transformer.process("o");
         let ow_action = transformer.process("w"); // nươ
-        assert_eq!(ow_action, Some(action(1, "ơ")));
+        assert_eq!(ow_action, Some(action(2, "ươ")));
 
         let tone_action = transformer.process("s"); // nướ
         assert_eq!(tone_action, Some(action(1, "ớ")));
