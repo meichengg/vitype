@@ -109,12 +109,14 @@ final class MenuBarManager: NSObject {
             keyEquivalent: ""
         )
         toggleItem.target = self
+        toggleItem.image = NSImage(systemSymbolName: "globe", accessibilityDescription: nil)
         menu.addItem(toggleItem)
 
         menu.addItem(NSMenuItem.separator())
 
         let inputHeader = NSMenuItem(title: "Input Method".localized(), action: nil, keyEquivalent: "")
         inputHeader.isEnabled = false
+        inputHeader.image = NSImage(systemSymbolName: "keyboard", accessibilityDescription: nil)
         menu.addItem(inputHeader)
 
         let telexItem = NSMenuItem(
@@ -124,6 +126,7 @@ final class MenuBarManager: NSObject {
         )
         telexItem.target = self
         telexItem.state = inputMethodValue == 0 ? .on : .off
+        telexItem.image = NSImage(systemSymbolName: "textformat", accessibilityDescription: nil)
         menu.addItem(telexItem)
 
         let vniItem = NSMenuItem(
@@ -133,6 +136,7 @@ final class MenuBarManager: NSObject {
         )
         vniItem.target = self
         vniItem.state = inputMethodValue == 1 ? .on : .off
+        vniItem.image = NSImage(systemSymbolName: "textformat", accessibilityDescription: nil)
         menu.addItem(vniItem)
 
         menu.addItem(NSMenuItem.separator())
@@ -143,6 +147,7 @@ final class MenuBarManager: NSObject {
             keyEquivalent: ","
         )
         settingsItem.target = self
+        settingsItem.image = NSImage(systemSymbolName: "gearshape", accessibilityDescription: nil)
         menu.addItem(settingsItem)
 
         let appExclusionItem = NSMenuItem(
@@ -151,6 +156,7 @@ final class MenuBarManager: NSObject {
             keyEquivalent: ""
         )
         appExclusionItem.target = self
+        appExclusionItem.image = NSImage(systemSymbolName: "xmark.app", accessibilityDescription: nil)
         menu.addItem(appExclusionItem)
 
         let checkForUpdatesItem = NSMenuItem(
@@ -159,6 +165,7 @@ final class MenuBarManager: NSObject {
             keyEquivalent: ""
         )
         checkForUpdatesItem.target = updaterController
+        checkForUpdatesItem.image = NSImage(systemSymbolName: "arrow.triangle.2.circlepath", accessibilityDescription: nil)
         menu.addItem(checkForUpdatesItem)
 
         menu.addItem(NSMenuItem.separator())
@@ -169,6 +176,7 @@ final class MenuBarManager: NSObject {
             keyEquivalent: ""
         )
         aboutItem.target = self
+        aboutItem.image = NSImage(systemSymbolName: "info.circle", accessibilityDescription: nil)
         menu.addItem(aboutItem)
 
         let quitItem = NSMenuItem(
@@ -177,6 +185,7 @@ final class MenuBarManager: NSObject {
             keyEquivalent: "q"
         )
         quitItem.target = self
+        quitItem.image = NSImage(systemSymbolName: "xmark.circle", accessibilityDescription: nil)
         menu.addItem(quitItem)
 
         statusItem?.menu = menu
