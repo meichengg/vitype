@@ -29,7 +29,7 @@ jobs:
           chmod 600 ~/.ssh/id_ed25519
           ssh-keyscan github.com >> ~/.ssh/known_hosts
           cat >> ~/.ssh/config << EOF
-          Host github.com-dat
+          Host github.com
             HostName github.com
             User git
             IdentityFile ~/.ssh/id_ed25519

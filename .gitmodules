@@ -1,3 +1,3 @@
 [submodule "ViType-core"]
 	path = ViType-core
-	url = git@github.com-dat:ttdatt/vitype-core.git
+	url = git@github.com:ttdatt/vitype-core.git
