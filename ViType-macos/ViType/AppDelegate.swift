@@ -38,8 +38,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var appActivationObserver: NSObjectProtocol?
     private var userDefaultsObserver: NSObjectProtocol?
     private var inputSourceObserver: NSObjectProtocol?
+    private var sessionActiveObserver: NSObjectProtocol?
+    private var wakeObserver: NSObjectProtocol?
     private var cachedInputSourceID: String?
     private var cachedInputSourceType: CFString?
+    private var tapRestartPending: Bool = false
     
     // Unsupported input sources that should bypass Vietnamese transformation
     private let unsupportedInputSources: Set<String> = [
@@ -92,6 +95,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         refreshShortcutSettings()
         startAppExclusionObservers()
         startInputSourceObservers()
+        startSessionObservers()
         startKeyTap()
 
         // Initialize menu bar with Sparkle updater
@@ -179,6 +183,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         if let inputSourceObserver {
             DistributedNotificationCenter.default().removeObserver(inputSourceObserver)
         }
+        if let sessionActiveObserver {
+            NSWorkspace.shared.notificationCenter.removeObserver(sessionActiveObserver)
+        }
+        if let wakeObserver {
+            NSWorkspace.shared.notificationCenter.removeObserver(wakeObserver)
+        }
         if let settingsWindowObserver {
             NotificationCenter.default.removeObserver(settingsWindowObserver)
         }
@@ -192,10 +202,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             place: .headInsertEventTap,
             options: .defaultTap,
             eventsOfInterest: mask,
-            callback: { _, _, event, refcon in
+            callback: { _, type, event, refcon in
                 let delegate = Unmanaged<AppDelegate>
                     .fromOpaque(refcon!)
                     .takeUnretainedValue()
+                if type == .tapDisabledByTimeout || type == .tapDisabledByUserInput {
+                    delegate.handleTapDisabled()
+                    return nil
+                }
                 let suppress = delegate.handle(event: event)
                 return suppress ? nil : Unmanaged.passUnretained(event)
             },
@@ -212,6 +226,66 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         runLoopSource = CFMachPortCreateRunLoopSource(kCFAllocatorDefault, tap, 0)
         CFRunLoopAddSource(CFRunLoopGetCurrent(), runLoopSource, .commonModes)
         CGEvent.tapEnable(tap: tap, enable: true)
+    }
+
+    private func stopKeyTap() {
+        if let runLoopSource {
+            CFRunLoopSourceInvalidate(runLoopSource)
+            CFRunLoopRemoveSource(CFRunLoopGetCurrent(), runLoopSource, .commonModes)
+            self.runLoopSource = nil
+        }
+
+        if let keyTap {
+            CFMachPortInvalidate(keyTap)
+            self.keyTap = nil
+        }
+    }
+
+    private func restartKeyTap() {
+        stopKeyTap()
+        resetKeyTapState()
+        startKeyTap()
+    }
+
+    private func resetKeyTapState() {
+        isInjectingReplacement = false
+        pendingInjectedKeyDownCount = 0
+        queuedKeyDownEvents.removeAll(keepingCapacity: true)
+        flushQueuedEventsScheduled = false
+        lastFocusedElement = nil
+        transformer.reset()
+    }
+
+    private func requestKeyTapRestart() {
+        guard !tapRestartPending else { return }
+        tapRestartPending = true
+        DispatchQueue.main.async { [weak self] in
+            guard let self else { return }
+            self.tapRestartPending = false
+            self.restartKeyTap()
+        }
+    }
+
+    private func handleTapDisabled() {
+        requestKeyTapRestart()
+    }
+
+    private func startSessionObservers() {
+        sessionActiveObserver = NSWorkspace.shared.notificationCenter.addObserver(
+            forName: NSWorkspace.sessionDidBecomeActiveNotification,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            self?.requestKeyTapRestart()
+        }
+
+        wakeObserver = NSWorkspace.shared.notificationCenter.addObserver(
+            forName: NSWorkspace.didWakeNotification,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            self?.requestKeyTapRestart()
+        }
     }
 
     private func startAppExclusionObservers() {
