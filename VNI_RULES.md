@@ -427,6 +427,7 @@ Tone marks are only applied when the **effective vowel cluster** (after `qu`/`gi
 `ươi`, `ươu`
 
 **Note**: Non-accented variants of any accented cluster are also valid (e.g., `êu` → `eu`, `ươ` → `uo`, `ươu` → `uou`). Single vowels always accept tones.
+When **Free Tone Placement** is enabled, this cluster validation is bypassed.
 
 ### 4.2 Nucleus-Only Vowels
 
@@ -759,6 +760,7 @@ Notes:
 ```c
 // Set input method (0 = Telex, 1 = VNI)
 void vitype_engine_set_input_method(VitypeEngine *engine, int32_t method);
+void vitype_engine_set_free_tone_placement(VitypeEngine *engine, bool enabled);
 ```
 
 ---

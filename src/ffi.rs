@@ -74,6 +74,19 @@ pub extern "C" fn vitype_engine_set_auto_fix_tone(engine: *mut VitypeEngine, ena
 }
 
 #[no_mangle]
+pub extern "C" fn vitype_engine_set_free_tone_placement(
+    engine: *mut VitypeEngine,
+    enabled: bool,
+) {
+    if engine.is_null() {
+        return;
+    }
+    unsafe {
+        (*engine).set_free_tone_placement(enabled);
+    }
+}
+
+#[no_mangle]
 pub extern "C" fn vitype_engine_set_input_method(engine: *mut VitypeEngine, method: i32) {
     if engine.is_null() {
         return;

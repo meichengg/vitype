@@ -48,6 +48,7 @@ pub struct VitypeEngine {
     last_w_transform_kind: WTransformKind,
     suppressed_transform_key: Option<char>,
     auto_fix_tone: bool,
+    free_tone_placement: bool,
     tone_placement: TonePlacement,
     output_encoding: OutputEncoding,
     input_method: InputMethod,
@@ -65,6 +66,7 @@ impl VitypeEngine {
             last_w_transform_kind: WTransformKind::None,
             suppressed_transform_key: None,
             auto_fix_tone: true,
+            free_tone_placement: false,
             tone_placement: TonePlacement::Orthographic,
             output_encoding: OutputEncoding::Unicode,
             input_method: InputMethod::Telex,
@@ -100,6 +102,10 @@ impl VitypeEngine {
 
     pub(crate) fn set_auto_fix_tone(&mut self, enabled: bool) {
         self.auto_fix_tone = enabled;
+    }
+
+    pub(crate) fn set_free_tone_placement(&mut self, enabled: bool) {
+        self.free_tone_placement = enabled;
     }
 
     pub(crate) fn set_input_method(&mut self, method: InputMethod) {
@@ -1060,7 +1066,7 @@ impl VitypeEngine {
     }
 
     fn find_target_vowel_index(&self, before: usize) -> Option<usize> {
-        if !self.is_valid_tone_cluster(before) {
+        if !self.free_tone_placement && !self.is_valid_tone_cluster(before) {
             return None;
         }
 

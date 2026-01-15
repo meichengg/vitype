@@ -503,6 +503,7 @@ Tone marks are only applied when the **effective vowel cluster** (after `qu`/`gi
 `ươi`, `ươu`
 
 **Note**: Non-accented variants of any accented cluster are also valid (e.g., `êu` → `eu`, `ươ` → `uo`, `ươu` → `uou`). Single vowels always accept tones.
+When **Free Tone Placement** is enabled, this cluster validation is bypassed.
 
 ### 4.2 Nucleus-Only Vowels
 
@@ -912,13 +913,17 @@ fn reposition_tone_if_needed(&mut self, suppressed_last_char: bool, min_start_of
 // Auto Fix Tone: automatically reposition tone marks when adding vowels
 auto_fix_tone: bool // Default: true
 
+// Free Tone Placement: bypass valid cluster checks when applying tones
+free_tone_placement: bool // Default: false
+
 // Tone Placement: controls how tones are positioned in vowel clusters
 // 0 = Orthographic (default), 1 = Nucleus-only
 tone_placement: TonePlacement
 ```
 
-The Rust API exposes this as `VitypeEngine::auto_fix_tone`. The C FFI can toggle it via
-`vitype_engine_set_auto_fix_tone(engine, enabled)`.
+The Rust API exposes this as `VitypeEngine::auto_fix_tone` and `VitypeEngine::free_tone_placement`.
+The C FFI can toggle them via `vitype_engine_set_auto_fix_tone(engine, enabled)` and
+`vitype_engine_set_free_tone_placement(engine, enabled)`.
 
 ### 8.2 Processing Order
 
@@ -980,6 +985,7 @@ void vitype_engine_free(VitypeEngine *engine);
 void vitype_engine_reset(VitypeEngine *engine);
 void vitype_engine_delete_last_character(VitypeEngine *engine);
 void vitype_engine_set_auto_fix_tone(VitypeEngine *engine, bool enabled);
+void vitype_engine_set_free_tone_placement(VitypeEngine *engine, bool enabled);
 void vitype_engine_set_input_method(VitypeEngine *engine, int32_t method);
 void vitype_engine_set_output_encoding(VitypeEngine *engine, int32_t encoding);
 void vitype_engine_set_tone_placement(VitypeEngine *engine, int32_t placement);

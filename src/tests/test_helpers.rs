@@ -43,6 +43,31 @@ pub(super) fn apply_input_with_auto_fix(input: &str, auto_fix_tone: bool) -> Str
     output.into_iter().collect()
 }
 
+pub(super) fn apply_input_with_free_tone_placement(
+    input: &str,
+    free_tone_placement: bool,
+) -> String {
+    let mut engine = VitypeEngine::new();
+    engine.free_tone_placement = free_tone_placement;
+    let mut output: Vec<char> = Vec::new();
+
+    for ch in input.chars() {
+        let ch_str = ch.to_string();
+        if let Some(action) = engine.process(&ch_str) {
+            if action.delete_count > 0 && output.len() >= action.delete_count {
+                for _ in 0..action.delete_count {
+                    output.pop();
+                }
+            }
+            output.extend(action.text.chars());
+        } else {
+            output.push(ch);
+        }
+    }
+
+    output.into_iter().collect()
+}
+
 pub(super) fn apply_vni_input(input: &str) -> String {
     apply_vni_input_with_auto_fix(input, true)
 }
@@ -66,6 +91,32 @@ pub(super) fn apply_vni_input_with_auto_fix(input: &str, auto_fix_tone: bool) ->
             output.push(ch);
         }
     }
+    output.into_iter().collect()
+}
+
+pub(super) fn apply_vni_input_with_free_tone_placement(
+    input: &str,
+    free_tone_placement: bool,
+) -> String {
+    let mut engine = VitypeEngine::new();
+    engine.input_method = InputMethod::Vni;
+    engine.free_tone_placement = free_tone_placement;
+    let mut output: Vec<char> = Vec::new();
+
+    for ch in input.chars() {
+        let ch_str = ch.to_string();
+        if let Some(action) = engine.process(&ch_str) {
+            if action.delete_count > 0 && output.len() >= action.delete_count {
+                for _ in 0..action.delete_count {
+                    output.pop();
+                }
+            }
+            output.extend(action.text.chars());
+        } else {
+            output.push(ch);
+        }
+    }
+
     output.into_iter().collect()
 }
 
