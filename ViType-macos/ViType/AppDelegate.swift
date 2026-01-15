@@ -70,6 +70,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // Register default values
         UserDefaults.standard.register(defaults: [
             "autoFixTone": true,
+            "freeTonePlacement": false,
             "inputMethod": 0, // 0 = Telex, 1 = VNI
             "outputEncoding": 0,
             "tonePlacement": 0, // 0 = Orthographic, 1 = NucleusOnly
@@ -277,6 +278,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     private func refreshTransformerSettings() {
         transformer.autoFixTone = UserDefaults.standard.bool(forKey: "autoFixTone")
+        transformer.freeTonePlacement = UserDefaults.standard.bool(forKey: "freeTonePlacement")
         let methodValue = UserDefaults.standard.integer(forKey: "inputMethod")
         transformer.inputMethod = InputMethod(rawValue: Int32(methodValue)) ?? .telex
 

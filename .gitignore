@@ -21,3 +21,5 @@ DerivedData
 
 # Rust
 target/
+
+ViType-macos/libvitype_core.a

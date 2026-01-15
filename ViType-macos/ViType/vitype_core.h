@@ -21,6 +21,7 @@ void vitype_engine_free(VitypeEngine *engine);
 void vitype_engine_reset(VitypeEngine *engine);
 void vitype_engine_delete_last_character(VitypeEngine *engine);
 void vitype_engine_set_auto_fix_tone(VitypeEngine *engine, bool enabled);
+void vitype_engine_set_free_tone_placement(VitypeEngine *engine, bool enabled);
 void vitype_engine_set_input_method(VitypeEngine *engine, int32_t method);  // 0 = Telex, 1 = VNI
 void vitype_engine_set_output_encoding(VitypeEngine *engine, int32_t encoding);
 void vitype_engine_set_tone_placement(VitypeEngine *engine, int32_t placement); // 0 = Orthographic, 1 = NucleusOnly

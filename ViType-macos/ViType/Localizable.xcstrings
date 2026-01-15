@@ -361,6 +361,38 @@
         }
       }
     },
+    "Free Tone Placement" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Free Tone Placement"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Đặt dấu tự do"
+          }
+        }
+      }
+    },
+    "Free Tone Placement Help" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Allow placing tone marks on any vowel, even in invalid Vietnamese clusters."
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cho phép đặt dấu thanh vào bất kỳ nguyên âm nào, kể cả trong các tổ hợp không hợp lệ."
+          }
+        }
+      }
+    },
     "English" : {
       "extractionState" : "stale",
       "localizations" : {

@@ -19,6 +19,7 @@ struct GeneralSettingsView: View {
     @Binding var inputMethod: Int
     @Binding var tonePlacement: Int
     @Binding var autoFixTone: Bool
+    @Binding var freeTonePlacement: Bool
     @Binding var playSoundOnToggle: Bool
 
     private var shortcutDisplayString: String {
@@ -147,6 +148,18 @@ struct GeneralSettingsView: View {
 
             Divider()
 
+            // Free Tone Placement
+            VStack(alignment: .leading, spacing: 4) {
+                Toggle("Free Tone Placement".localized(), isOn: $freeTonePlacement)
+
+                Text("Free Tone Placement Help".localized())
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
+            Divider()
+
             // Start at Login
             VStack(alignment: .leading, spacing: 4) {
                 Toggle("Start at Login".localized(), isOn: Binding(
@@ -187,6 +200,7 @@ struct GeneralSettingsView: View {
         inputMethod: .constant(0),
         tonePlacement: .constant(0),
         autoFixTone: .constant(true),
+        freeTonePlacement: .constant(false),
         playSoundOnToggle: .constant(true)
     )
     .padding()

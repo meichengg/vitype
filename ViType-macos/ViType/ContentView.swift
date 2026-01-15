@@ -30,6 +30,7 @@ struct ContentView: View {
     @State private var selectedTab: SettingsTab = .general
 
     @AppStorage("autoFixTone") private var autoFixTone = true
+    @AppStorage("freeTonePlacement") private var freeTonePlacement = false
     @AppStorage("inputMethod") private var inputMethod = 0
     @AppStorage("outputEncoding") private var outputEncoding = 0
     @AppStorage("tonePlacement") private var tonePlacement = 0
@@ -86,6 +87,7 @@ struct ContentView: View {
                         inputMethod: $inputMethod,
                         tonePlacement: $tonePlacement,
                         autoFixTone: $autoFixTone,
+                        freeTonePlacement: $freeTonePlacement,
                         playSoundOnToggle: $playSoundOnToggle
                     )
 

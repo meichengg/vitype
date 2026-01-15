@@ -49,6 +49,14 @@ final class KeyTransformer {
         }
     }
 
+    var freeTonePlacement: Bool = false {
+        didSet {
+            if let engine {
+                vitype_engine_set_free_tone_placement(engine, freeTonePlacement)
+            }
+        }
+    }
+
     var outputEncoding: OutputEncoding = .unicode {
         didSet {
             if let engine {
@@ -73,6 +81,7 @@ final class KeyTransformer {
         if let engine {
             vitype_engine_set_input_method(engine, inputMethod.rawValue)
             vitype_engine_set_auto_fix_tone(engine, autoFixTone)
+            vitype_engine_set_free_tone_placement(engine, freeTonePlacement)
             vitype_engine_set_output_encoding(engine, outputEncoding.rawValue)
             vitype_engine_set_tone_placement(engine, tonePlacement.rawValue)
         }
