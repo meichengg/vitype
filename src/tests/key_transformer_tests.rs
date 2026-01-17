@@ -812,6 +812,12 @@ mod key_transformer_tests {
         assert_eq!(apply_input("ddaua"), "đâu"); // dd→đ, free transform a...a
     }
 
+    #[test]
+    fn testFreeTransformDStrokeMaxGap() {
+        // "đuong" via d...d with 4 characters between
+        assert_eq!(apply_input("duongd"), "đuong");
+    }
+
     // MARK: - Free Transform with Tone Tests
 
     #[test]

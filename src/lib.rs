@@ -370,7 +370,8 @@ impl VitypeEngine {
         let trigger_index = self.buffer.len() - 1;
         let mut index = trigger_index;
         let mut distance = 0;
-        while index > 0 && distance < 4 {
+        // Allow up to 4 characters between the two 'd' keys (distance <= 5).
+        while index > 0 && distance < 5 {
             index -= 1;
             distance += 1;
             if lower_char(self.buffer[index]) == 'd' {

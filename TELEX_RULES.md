@@ -44,7 +44,7 @@ This document describes the Telex input method rules implemented in **ViType-cor
 
 ### 1.1.1 Free Transform (Non-Adjacent D)
 
-The `dd` → `đ` transform works even when **other characters separate the two d's**, as long as the first `d` is within 4 characters and at the start of the word. This allows more flexible typing:
+The `dd` → `đ` transform works even when **other characters separate the two d's**, as long as the first `d` is within **4 characters between them** (i.e., the engine searches up to **5 positions back**) and at the start of the word. This allows more flexible typing:
 
 | Input | Buffer State | Output | Description |
 |-------|--------------|--------|-------------|
@@ -53,7 +53,7 @@ The `dd` → `đ` transform works even when **other characters separate the two 
 | `dod` | **d**o**d** | đo | d...d → đ (through `o`) |
 
 **How it works**:
-1. When typing `d`, the system searches backward (up to 4 characters)
+1. When typing `d`, the system searches backward (up to 5 positions back)
 2. If a previous `d` is found, they merge into `đ`/`Đ`
 3. Any characters between them are preserved in the output
 
@@ -63,9 +63,10 @@ The `dd` → `đ` transform works even when **other characters separate the two 
 |-------|-------|--------------|
 | `did` | `di` → second `d` merges → `đi` | đi |
 | `daid` | `dai` → second `d` merges → `đai` | đai |
+| `duongd` | `duong` → second `d` merges → `đuong` | đuong |
 
 **Limitations**:
-- Maximum search distance: 4 characters
+- Maximum gap: 4 characters between the two `d` keys (search up to 5 positions back)
 - The first character must be `d`/`D`, not already transformed `đ`/`Đ`
 - The first `d` must start the word
 

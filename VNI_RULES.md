@@ -57,16 +57,17 @@ This document describes the VNI input method rules for ViType, a Vietnamese IME.
 
 ### 1.2 Free Transform (Non-Adjacent D)
 
-The `d...9` transform works even when **other characters separate d and 9**, as long as the `d` is within 4 characters and at the start of the word. This allows more flexible typing:
+The `d...9` transform works even when **other characters separate d and 9**, as long as there are **no more than 4 characters between** the `d` and the `9` key (the engine searches up to **5 positions back**) and the `d` starts the word. This allows more flexible typing:
 
 | Input | Buffer State | Output | Description |
 |-------|--------------|--------|-------------|
 | `di9` | **d**i**9** | đi | d...9 → đ (through `i`) |
 | `dede9` | **d**e**d**e**9** | deđe | Last d transforms |
 | `do9` | **d**o**9** | đo | d...9 → đ (through `o`) |
+| `duong9` | **d**u**o**n**g**9 | đuong | d...9 → đ (through `uong`) |
 
 **How it works**:
-1. When typing `9`, the system searches backward (up to 4 characters)
+1. When typing `9`, the system searches backward (up to 5 positions back)
 2. If a `d` is found, it transforms to `đ`/`Đ`
 3. Any characters between them are preserved in the output
 
@@ -78,7 +79,7 @@ The `d...9` transform works even when **other characters separate d and 9**, as 
 | `dai9` | `dai` → `9` transforms d → `đai` | đai |
 
 **Limitations**:
-- Maximum search distance: 4 characters
+- Maximum gap: 4 characters between `d` and `9` (search up to 5 positions back)
 - The character must be `d`/`D`, not already transformed `đ`/`Đ`
 - The `d` must start the word
 

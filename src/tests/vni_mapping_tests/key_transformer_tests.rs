@@ -814,6 +814,12 @@ mod key_transformer_tests {
         assert_eq!(apply_vni_input("d9au6"), "đâu"); // d9→đ, free transform a...a
     }
 
+    #[test]
+    fn testFreeTransformDStrokeMaxGap() {
+        // "đuong" via d...9 with 4 characters between
+        assert_eq!(apply_vni_input("duong9"), "đuong");
+    }
+
     // MARK: - Free Transform with Tone Tests
 
     #[test]
