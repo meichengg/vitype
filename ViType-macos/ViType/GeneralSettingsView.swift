@@ -20,6 +20,7 @@ struct GeneralSettingsView: View {
     @Binding var tonePlacement: Int
     @Binding var autoFixTone: Bool
     @Binding var freeTonePlacement: Bool
+    @Binding var outputEncoding: Int
     @Binding var playSoundOnToggle: Bool
 
     private var shortcutDisplayString: String {
@@ -160,6 +161,22 @@ struct GeneralSettingsView: View {
 
             Divider()
 
+            // Character Encoding
+            VStack(alignment: .leading, spacing: 4) {
+                Picker("Character Encoding:".localized(), selection: $outputEncoding) {
+                    Text("Unicode".localized()).tag(0)
+                    Text("Composite Unicode".localized()).tag(1)
+                }
+                .pickerStyle(.menu)
+
+                Text("Character Encoding Help".localized())
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
+            Divider()
+
             // Start at Login
             VStack(alignment: .leading, spacing: 4) {
                 Toggle("Start at Login".localized(), isOn: Binding(
@@ -201,6 +218,7 @@ struct GeneralSettingsView: View {
         tonePlacement: .constant(0),
         autoFixTone: .constant(true),
         freeTonePlacement: .constant(false),
+        outputEncoding: .constant(0),
         playSoundOnToggle: .constant(true)
     )
     .padding()

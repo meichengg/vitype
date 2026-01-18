@@ -85,7 +85,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             AppExclusion.shortcutOptionKey: false,
             AppExclusion.shortcutControlKey: true,
             AppExclusion.shortcutShiftKey: false,
-            AppExclusion.useAXGhostSuggestionKey: true,
             AppExclusion.playSoundOnToggleKey: true,
         ])
 
@@ -754,7 +753,6 @@ extension AppDelegate {
 
 extension AppDelegate {
     private func shouldWipeGhostSuggestion() -> Bool {
-        guard UserDefaults.standard.bool(forKey: AppExclusion.useAXGhostSuggestionKey) else { return false }
         guard AXIsProcessTrusted() else { return false }
         return readSelectionRange()
             .map { $0.isGhostSuggestion }

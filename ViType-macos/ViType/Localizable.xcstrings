@@ -361,7 +361,25 @@
         }
       }
     },
+    "English" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "English"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "English"
+          }
+        }
+      }
+    },
     "Free Tone Placement" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -378,6 +396,7 @@
       }
     },
     "Free Tone Placement Help" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -389,23 +408,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Cho phép đặt dấu thanh vào bất kỳ nguyên âm nào, kể cả trong các tổ hợp không hợp lệ."
-          }
-        }
-      }
-    },
-    "English" : {
-      "extractionState" : "stale",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "English"
-          }
-        },
-        "vi" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "English"
           }
         }
       }
@@ -885,40 +887,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Không xác định"
-          }
-        }
-      }
-    },
-    "Use Accessibility API" : {
-      "extractionState" : "stale",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Use Accessibility API"
-          }
-        },
-        "vi" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Dùng Accessibility API"
-          }
-        }
-      }
-    },
-    "Use Accessibility API Help" : {
-      "extractionState" : "stale",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Enable AX-based detection to avoid browser suggestion conflicts."
-          }
-        },
-        "vi" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Bật phát hiện dựa trên AX để tránh xung đột với gợi ý của trình duyệt."
           }
         }
       }

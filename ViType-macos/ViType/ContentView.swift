@@ -9,15 +9,12 @@ import SwiftUI
 
 enum SettingsTab: String, CaseIterable {
     case general
-    case advanced
     case appExclusion
-    
+
     func localizedName() -> String {
         switch self {
         case .general:
             return "General".localized()
-        case .advanced:
-            return "Advanced".localized()
         case .appExclusion:
             return "App Exclusion".localized()
         }
@@ -37,7 +34,6 @@ struct ContentView: View {
     @AppStorage(AppExclusion.isEnabledKey) private var appExclusionEnabled = true
     @AppStorage(AppExclusion.excludedBundleIDsKey) private var excludedBundleIDsText = ""
     @AppStorage(AppExclusion.viTypeEnabledKey) private var viTypeEnabled = true
-    @AppStorage(AppExclusion.useAXGhostSuggestionKey) private var useAXGhostSuggestion = true
 
     // Shortcut settings
     @AppStorage(AppExclusion.shortcutKeyKey) private var shortcutKey = "x"
@@ -88,13 +84,8 @@ struct ContentView: View {
                         tonePlacement: $tonePlacement,
                         autoFixTone: $autoFixTone,
                         freeTonePlacement: $freeTonePlacement,
-                        playSoundOnToggle: $playSoundOnToggle
-                    )
-
-                case .advanced:
-                    AdvancedSettingsView(
                         outputEncoding: $outputEncoding,
-                        useAXGhostSuggestion: $useAXGhostSuggestion
+                        playSoundOnToggle: $playSoundOnToggle
                     )
 
                 case .appExclusion:
