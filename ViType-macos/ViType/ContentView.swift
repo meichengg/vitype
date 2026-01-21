@@ -110,11 +110,12 @@ struct ContentView: View {
     }
 }
 
-// Custom text field that only accepts a single character (a-z) or "space"
+// Custom text field that only accepts a single character (a-z, 0-9, []\;',./) or "space"
 struct ShortcutKeyField: View {
     @Binding var key: String
     @State private var displayText: String = ""
     @StateObject private var localizationManager = LocalizationManager.shared
+    private static let allowedShortcutCharacters: Set<Character> = Set("abcdefghijklmnopqrstuvwxyz0123456789[]\\;',./")
 
     var body: some View {
         TextField("", text: $displayText)
@@ -166,9 +167,8 @@ struct ShortcutKeyField: View {
 
         let char = String(lastChar).lowercased()
 
-        // Only accept a-z
-        if char.count == 1, let scalar = char.unicodeScalars.first,
-           scalar >= "a" && scalar <= "z" {
+        // Only accept allowed shortcut characters
+        if let c = char.first, char.count == 1, Self.allowedShortcutCharacters.contains(c) {
             key = char
             displayText = char.uppercased()
         } else {

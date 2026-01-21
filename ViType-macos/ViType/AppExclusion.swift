@@ -15,7 +15,7 @@ enum AppExclusion {
     static let viTypeEnabledKey = "viTypeEnabled"
 
     // Keyboard shortcut settings
-    static let shortcutKeyKey = "shortcutKey"              // Single character (a-z)
+    static let shortcutKeyKey = "shortcutKey"              // Single character (a-z, 0-9, []\;',./, or "space")
     static let shortcutCommandKey = "shortcutCommand"      // Cmd modifier
     static let shortcutOptionKey = "shortcutOption"        // Option modifier
     static let shortcutControlKey = "shortcutControl"      // Control modifier
@@ -47,4 +47,3 @@ enum AppExclusion {
         return result
     }
 }
-
