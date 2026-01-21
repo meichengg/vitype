@@ -115,7 +115,7 @@ struct ShortcutKeyField: View {
     @Binding var key: String
     @State private var displayText: String = ""
     @StateObject private var localizationManager = LocalizationManager.shared
-    private static let allowedShortcutCharacters: Set<Character> = Set("abcdefghijklmnopqrstuvwxyz0123456789[]\\;',./")
+    private static let allowedShortcutCharacters: Set<Character> = Set("abcdefghijklmnopqrstuvwxyz0123456789[]\\;',./`")
 
     var body: some View {
         TextField("", text: $displayText)
