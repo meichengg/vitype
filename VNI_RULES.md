@@ -92,6 +92,14 @@ When a word is detected as foreign (invalid Vietnamese syllable), the engine ent
 - All transform keys (`d9`, tone keys `0–5`, and vowel keys `6–8`) are treated as literal characters.
 - Transform behavior resumes after a word boundary (space or punctuation). (Digits are **not** treated as word boundaries in VNI, even in foreign mode.)
 
+**Foreign detection rules (high level)**:
+- Multiple vowel clusters (e.g., `aba1` → `aba1`)
+- A consonant after the last vowel that is **not** one of: `p`, `t`, `c`, `ch`, `k`, `m`, `n`, `ng`, `nh`
+
+**Examples**:
+- `ab1` → `ab1` (b is not a valid final consonant, so tone key `1` stays literal)
+- `am1` → `ám` (m is a valid final consonant, tone applies normally)
+
 ---
 
 ## 2. Vowel Transformations

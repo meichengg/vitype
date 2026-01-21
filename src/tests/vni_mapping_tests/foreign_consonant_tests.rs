@@ -752,6 +752,13 @@ mod repeated_escape_tests {
     }
 
     #[test]
+    fn testForeignModeAfterInvalidFinalConsonant() {
+        assert_eq!(apply_vni_input("ab1"), "ab1");
+        assert_eq!(apply_vni_input("ab6"), "ab6");
+        assert_eq!(apply_vni_input("am1"), "ám");
+    }
+
+    #[test]
     fn testForeignModeLiteralTransformKeys() {
         assert_eq!(apply_vni_input("aba1"), "aba1");
         assert_eq!(apply_vni_input("aba6"), "aba6");

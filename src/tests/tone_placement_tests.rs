@@ -243,22 +243,19 @@ mod auto_fix_tone_tests {
         // "hòa" + "i" → "hoài" (auto-fix repositions tone, should clear lastTransformKey)
         let _ = transformer.process("i"); // hoài
 
-        // Now typing "f" should apply tone to the vowel, NOT trigger escape
-        // If lastTransformKey wasn't cleared, this might incorrectly try escape logic
+        // Now typing "f" would normally apply tone, but because it's an invalid final consonant,
+        // the engine should flip to foreign mode and rewrite to raw input.
         let result = transformer.process("f");
 
-        // "f" should apply grave tone to the target vowel (à already has it, so it stays)
-        // The important thing is it doesn't produce an escape sequence like "if" or similar
-        // Since hoài already has the tone on à, applying f again should just replace with same tone
-        assert_eq!(result, Some(action(2, "aif")));
+        // Final consonant "f" makes the syllable foreign, so the engine rewrites to raw input.
+        assert_eq!(result, Some(action(4, "hoafi")));
     }
 
     #[test]
     fn testEscapeSequenceNotTriggeredAfterAutoFixEndToEnd() {
-        // End-to-end version: "hoafif" should produce "hoài" with grave tone
-        // NOT trigger any escape sequence behavior
+        // End-to-end version: final "f" makes the syllable foreign, so it stays literal.
         let result = apply_input("hoafif");
-        assert_eq!(result, "hoaif");
+        assert_eq!(result, "hoafi");
 
         let r1 = apply_input("hoaf");
         assert_eq!(r1, "hòa");

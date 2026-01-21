@@ -628,26 +628,26 @@ mod repeated_escape_tests {
     fn testRepeatedToneEscapeCircumflexA() {
         // âs → ấ, âss → âs, âsss → âss, etc.
         assert_eq!(apply_input("aas"), "ấ");
-        assert_eq!(apply_input("aass"), "âs");
-        assert_eq!(apply_input("aasss"), "âss");
-        assert_eq!(apply_input("aassss"), "âsss");
-        assert_eq!(apply_input("aasssss"), "âssss");
+        assert_eq!(apply_input("aass"), "aas");
+        assert_eq!(apply_input("aasss"), "aass");
+        assert_eq!(apply_input("aassss"), "aasss");
+        assert_eq!(apply_input("aasssss"), "aassss");
     }
 
     #[test]
     fn testRepeatedToneEscapeCircumflexE() {
         assert_eq!(apply_input("ees"), "ế");
-        assert_eq!(apply_input("eess"), "ês");
-        assert_eq!(apply_input("eesss"), "êss");
-        assert_eq!(apply_input("eessss"), "êsss");
+        assert_eq!(apply_input("eess"), "ees");
+        assert_eq!(apply_input("eesss"), "eess");
+        assert_eq!(apply_input("eessss"), "eesss");
     }
 
     #[test]
     fn testRepeatedToneEscapeCircumflexO() {
         assert_eq!(apply_input("oos"), "ố");
-        assert_eq!(apply_input("ooss"), "ôs");
-        assert_eq!(apply_input("oosss"), "ôss");
-        assert_eq!(apply_input("oossss"), "ôsss");
+        assert_eq!(apply_input("ooss"), "oos");
+        assert_eq!(apply_input("oosss"), "ooss");
+        assert_eq!(apply_input("oossss"), "oosss");
     }
 
     // MARK: - Repeated Tone Escape with Breve/Horn Vowels (ă, ơ, ư)
@@ -656,25 +656,25 @@ mod repeated_escape_tests {
     fn testRepeatedToneEscapeBreveA() {
         // ăs → ắ, ăss → ăs, ăsss → ăss, etc.
         assert_eq!(apply_input("aws"), "ắ");
-        assert_eq!(apply_input("awss"), "ăs");
-        assert_eq!(apply_input("awsss"), "ăss");
-        assert_eq!(apply_input("awssss"), "ăsss");
+        assert_eq!(apply_input("awss"), "aws");
+        assert_eq!(apply_input("awsss"), "awss");
+        assert_eq!(apply_input("awssss"), "awsss");
     }
 
     #[test]
     fn testRepeatedToneEscapeHornO() {
         assert_eq!(apply_input("ows"), "ớ");
-        assert_eq!(apply_input("owss"), "ơs");
-        assert_eq!(apply_input("owsss"), "ơss");
-        assert_eq!(apply_input("owssss"), "ơsss");
+        assert_eq!(apply_input("owss"), "ows");
+        assert_eq!(apply_input("owsss"), "owss");
+        assert_eq!(apply_input("owssss"), "owsss");
     }
 
     #[test]
     fn testRepeatedToneEscapeHornU() {
         assert_eq!(apply_input("uws"), "ứ");
-        assert_eq!(apply_input("uwss"), "ưs");
-        assert_eq!(apply_input("uwsss"), "ưss");
-        assert_eq!(apply_input("uwssss"), "ưsss");
+        assert_eq!(apply_input("uwss"), "uws");
+        assert_eq!(apply_input("uwsss"), "uwss");
+        assert_eq!(apply_input("uwssss"), "uwsss");
     }
 
     // MARK: - Repeated Vowel Transform Escape Tests (aa, ee, oo)
@@ -798,8 +798,8 @@ mod repeated_escape_tests {
     fn testRepeatedEscapeInWordViet() {
         // vieejt → việt, vieejtj → việtj? Let's test tone escape
         assert_eq!(apply_input("vieej"), "việ");
-        assert_eq!(apply_input("vieejj"), "viêj");
-        assert_eq!(apply_input("vieejjj"), "viêjj");
+        assert_eq!(apply_input("vieejj"), "vieej");
+        assert_eq!(apply_input("vieejjj"), "vieejj");
     }
 
     #[test]
@@ -844,6 +844,14 @@ mod repeated_escape_tests {
     }
 
     // MARK: - Foreign Mode Literal Transforms
+
+    #[test]
+    fn testForeignModeAfterInvalidFinalConsonant() {
+        assert_eq!(apply_input("abs"), "abs");
+        assert_eq!(apply_input("abj"), "abj");
+        assert_eq!(apply_input("abf"), "abf");
+        assert_eq!(apply_input("ams"), "ám");
+    }
 
     #[test]
     fn testForeignModeLiteralTransformKeys() {

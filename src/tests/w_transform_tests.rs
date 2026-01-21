@@ -198,23 +198,23 @@ mod uaw_compound_transform_tests {
 
     #[test]
     fn testUWAWEscape() {
-        // "uwaw" → "uaw" (escape compound transform)
+        // "uwaw" stays literal because final "w" makes the syllable foreign
         let result = apply_input("uwaw");
-        assert_eq!(result, "uaw");
+        assert_eq!(result, "uwaw");
     }
 
     #[test]
     fn testUWAWEscapeUppercase() {
-        // "UWAW" → "UAW"
+        // "UWAW" stays literal because final "W" makes the syllable foreign
         let result = apply_input("UWAW");
-        assert_eq!(result, "UAW");
+        assert_eq!(result, "UWAW");
     }
 
     #[test]
     fn testUWAWEscapeAfterConsonant() {
-        // "tuwaw" → "tuaw"
+        // "tuwaw" stays literal because final "w" makes the syllable foreign
         let result = apply_input("tuwaw");
-        assert_eq!(result, "tuaw");
+        assert_eq!(result, "tuwaw");
     }
 
     // MARK: - UAW with Tones

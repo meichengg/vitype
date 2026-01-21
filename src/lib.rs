@@ -875,7 +875,7 @@ impl VitypeEngine {
         &mut self,
         previous_buffer_count: usize,
     ) -> Option<KeyTransformAction> {
-        if !self.has_multiple_vowel_clusters(self.buffer.len()) {
+        if !self.is_invalid_vietnamese_syllable(self.buffer.len()) {
             return None;
         }
 
@@ -913,6 +913,54 @@ impl VitypeEngine {
         });
 
         has_gap
+    }
+
+    fn is_invalid_vietnamese_syllable(&self, before: usize) -> bool {
+        self.has_multiple_vowel_clusters(before) || self.has_invalid_final_consonant(before)
+    }
+
+    fn has_invalid_final_consonant(&self, before: usize) -> bool {
+        let last_vowel_index = match self.last_effective_vowel_index(before) {
+            Some(index) => index,
+            None => return false,
+        };
+
+        if last_vowel_index + 1 >= before {
+            return false;
+        }
+
+        let mut tail = String::new();
+        for ch in &self.buffer[last_vowel_index + 1..before] {
+            if is_vowel(*ch) {
+                return false;
+            }
+            if !ch.is_alphabetic() {
+                return false;
+            }
+            tail.push(lower_char(*ch));
+            if tail.len() > 2 {
+                return true;
+            }
+        }
+
+        if tail.is_empty() {
+            return false;
+        }
+
+        !Self::is_allowed_final_consonant(&tail)
+    }
+
+    fn is_allowed_final_consonant(tail: &str) -> bool {
+        matches!(tail, "p" | "t" | "c" | "ch" | "k" | "m" | "n" | "ng" | "nh")
+    }
+
+    fn last_effective_vowel_index(&self, before: usize) -> Option<usize> {
+        let mut last: Option<usize> = None;
+        self.for_each_effective_vowel_index(before, |index| {
+            last = Some(index);
+            true
+        });
+        last
     }
 
     fn is_u_vowel_after_q(&self, vowel_index: usize) -> bool {
@@ -1634,7 +1682,7 @@ impl VitypeEngine {
         self.buffer = desired_buffer;
         self.raw_buffer.pop();
         self.clear_transform_state();
-        self.is_foreign_mode = self.has_multiple_vowel_clusters(self.buffer.len());
+        self.is_foreign_mode = self.is_invalid_vietnamese_syllable(self.buffer.len());
         if self.buffer.is_empty() {
             self.transforms_locked = false;
         }

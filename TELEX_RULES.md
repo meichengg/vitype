@@ -159,6 +159,14 @@ When a word is detected as foreign (invalid Vietnamese syllable), the engine ent
 - All transform keys (`dd`, tone keys, `w` compounds) are treated as literal characters.
 - Transform behavior resumes after a word boundary (whitespace, punctuation, or digit).
 
+**Foreign detection rules (high level)**:
+- Multiple vowel clusters (e.g., `abes` → `abes`)
+- A consonant after the last vowel that is **not** one of: `p`, `t`, `c`, `ch`, `k`, `m`, `n`, `ng`, `nh`
+
+**Examples**:
+- `abs` → `abs` (b is not a valid final consonant, so tone key `s` stays literal)
+- `ams` → `ám` (m is a valid final consonant, tone applies normally)
+
 ---
 
 ## 2. Vowel Transformations
