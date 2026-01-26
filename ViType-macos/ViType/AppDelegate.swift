@@ -247,6 +247,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     private func resetKeyTapState() {
+        resetInputState()
+    }
+
+    private func resetInputState() {
         isInjectingReplacement = false
         pendingInjectedKeyDownCount = 0
         queuedKeyDownEvents.removeAll(keepingCapacity: true)
@@ -296,8 +300,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             guard let self else { return }
             let app = notification.userInfo?[NSWorkspace.applicationUserInfoKey] as? NSRunningApplication
             frontmostBundleID = app?.bundleIdentifier ?? NSWorkspace.shared.frontmostApplication?.bundleIdentifier
-            transformer.reset()
-            lastFocusedElement = nil
+            resetInputState()
         }
 
         userDefaultsObserver = NotificationCenter.default.addObserver(
@@ -605,7 +608,7 @@ extension AppDelegate {
         guard !CFEqual(lastFocusedElement, current) else { return }
 
         self.lastFocusedElement = current
-        transformer.reset()
+        resetInputState()
     }
 
     private func replace(last count: Int, with text: String, extraDeleteCount: Int) {
