@@ -38,5 +38,8 @@ fn testToneAllowedForValidClustersVni() {
 #[test]
 fn testFreeTonePlacementAllowsInvalidClustersVni() {
     assert_eq!(apply_vni_input_with_free_tone_placement("ae1", true), "áe");
-    assert_eq!(apply_vni_input_with_free_tone_placement("mua2i", true), "muài");
+    assert_eq!(
+        apply_vni_input_with_free_tone_placement("mua2i", true),
+        "muài"
+    );
 }

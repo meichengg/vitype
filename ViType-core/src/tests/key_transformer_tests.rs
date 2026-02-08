@@ -167,6 +167,27 @@ mod key_transformer_tests {
     }
 
     #[test]
+    fn testEnterClearsHistoryAndDisablesBoundaryBackspaceRestore() {
+        for enter in ['\r', '\n'] {
+            let mut engine = VitypeEngine::new();
+            let mut output: Vec<char> = Vec::new();
+
+            for ch in "tas".chars() {
+                apply_key(&mut engine, &mut output, ch);
+            }
+            assert_eq!(output.iter().collect::<String>(), "tá");
+
+            apply_key(&mut engine, &mut output, enter);
+            assert!(engine.history.is_empty());
+
+            // Deleting the line break should not restore the previous word into the active buffer.
+            backspace(&mut engine, &mut output);
+            apply_key(&mut engine, &mut output, 'z');
+            assert_eq!(output.iter().collect::<String>(), "táz");
+        }
+    }
+
+    #[test]
     fn testBackspaceAfterToneThenForeignModeRewriteStaysCorrect() {
         let mut engine = VitypeEngine::new();
         let mut output: Vec<char> = Vec::new();

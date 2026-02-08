@@ -132,6 +132,12 @@ impl VitypeEngine {
         }
 
         if is_word_boundary(ch, self.input_method) {
+            if should_clear_history_on_boundary(ch) {
+                self.reset_current_word();
+                self.history.clear();
+                return None;
+            }
+
             self.commit_current_word_to_history_if_needed();
             self.push_boundary_to_history(ch);
             self.reset_current_word();
@@ -1730,6 +1736,10 @@ fn is_word_boundary(ch: char, input_method: InputMethod) -> bool {
         InputMethod::Telex => is_telex_word_boundary(ch),
         InputMethod::Vni => is_vni_word_boundary(ch),
     }
+}
+
+fn should_clear_history_on_boundary(ch: char) -> bool {
+    ch == '\n' || ch == '\r'
 }
 
 #[cfg(test)]

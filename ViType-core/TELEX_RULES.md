@@ -938,7 +938,7 @@ The C FFI can toggle them via `vitype_engine_set_auto_fix_tone(engine, enabled)`
 
 The `VitypeEngine::process` method follows this order:
 
-1. **Word boundary check** → Commit the current word into a small internal history window, clear the active word buffers, and return `nil`
+1. **Word boundary check** → Commit the current word into a small internal history window, clear the active word buffers, and return `nil`. For `Enter` (`\r`/`\n`), clear the history window too.
 2. **Escape sequence check** → Return undo action if matched
 3. **Append to buffer**
 4. **Consonant transform** → Check for `dd` → `đ`
@@ -949,6 +949,7 @@ The `VitypeEngine::process` method follows this order:
 
 Notes:
 - The engine keeps a small history (currently **3 words**) so that if the user **backspaces across a word boundary**, the previous word can be restored into the active buffer and tone/diacritic edits can still be applied.
+- Pressing `Enter` clears this history window, so boundary-aware backspace restore is disabled across line breaks.
 
 ### 8.3 KeyTransformAction
 
