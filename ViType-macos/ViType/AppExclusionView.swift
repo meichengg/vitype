@@ -16,18 +16,11 @@ struct AppExclusionView: View {
     @ObservedObject var frontmostAppMonitor: FrontmostAppMonitor
 
     private var bundleIDToAdd: String? {
-        let viTypeBundleID = Bundle.main.bundleIdentifier?.lowercased()
-        let current = frontmostAppMonitor.bundleIdentifier?.lowercased()
-        if current == viTypeBundleID {
-            return frontmostAppMonitor.lastNonViTypeBundleIdentifier
-        }
-        return current ?? frontmostAppMonitor.lastNonViTypeBundleIdentifier
+        frontmostAppMonitor.lastNonViTypeBundleIdentifier
     }
 
     private var addButtonTitle: String {
-        let viTypeBundleID = Bundle.main.bundleIdentifier?.lowercased()
-        let current = frontmostAppMonitor.bundleIdentifier?.lowercased()
-        return current == viTypeBundleID ? "Add Previous App".localized() : "Add Current App".localized()
+        "Add Previous App".localized()
     }
 
     var body: some View {
@@ -52,30 +45,17 @@ struct AppExclusionView: View {
                         .stroke(.secondary.opacity(0.25))
                 )
 
-            // Current/Previous app info and Add button
+            // Previous app info and Add button
             HStack(alignment: .bottom, spacing: 12) {
-                VStack(alignment: .leading, spacing: 4) {
-                    HStack(spacing: 8) {
-                        Text("Current app:".localized())
-                            .font(.caption)
-                            .foregroundColor(.secondary)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Previous app:".localized())
+                        .font(.caption)
+                        .foregroundColor(.secondary)
 
-                        Text(frontmostAppMonitor.bundleIdentifier ?? "Unknown".localized())
-                            .font(.caption)
-                            .foregroundColor(.secondary)
-                            .textSelection(.enabled)
-                    }
-
-                    HStack(spacing: 8) {
-                        Text("Previous app:".localized())
-                            .font(.caption)
-                            .foregroundColor(.secondary)
-
-                        Text(frontmostAppMonitor.lastNonViTypeBundleIdentifier ?? "Unknown".localized())
-                            .font(.caption)
-                            .foregroundColor(.secondary)
-                            .textSelection(.enabled)
-                    }
+                    Text(frontmostAppMonitor.lastNonViTypeBundleIdentifier ?? "Unknown".localized())
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                        .textSelection(.enabled)
                 }
 
                 Spacer()

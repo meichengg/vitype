@@ -21,23 +21,6 @@
         }
       }
     },
-    "Add Current App" : {
-      "extractionState" : "stale",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Add Current App"
-          }
-        },
-        "vi" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Thêm ứng dụng hiện tại"
-          }
-        }
-      }
-    },
     "Add Previous App" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -289,23 +272,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Control"
-          }
-        }
-      }
-    },
-    "Current app:" : {
-      "extractionState" : "stale",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Current app:"
-          }
-        },
-        "vi" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Ứng dụng hiện tại:"
           }
         }
       }
