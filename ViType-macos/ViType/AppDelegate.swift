@@ -87,6 +87,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             AppExclusion.shortcutControlKey: true,
             AppExclusion.shortcutShiftKey: false,
             AppExclusion.playSoundOnToggleKey: true,
+            LocalizationManager.languageKey: "vi",
         ])
 
         refreshTransformerSettings()

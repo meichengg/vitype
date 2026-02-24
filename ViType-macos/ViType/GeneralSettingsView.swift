@@ -8,7 +8,7 @@
 import SwiftUI
 
 struct GeneralSettingsView: View {
-    @StateObject private var localizationManager = LocalizationManager.shared
+    @ObservedObject private var localizationManager = LocalizationManager.shared
     
     @Binding var viTypeEnabled: Bool
     @Binding var shortcutKey: String
@@ -22,6 +22,9 @@ struct GeneralSettingsView: View {
     @Binding var freeTonePlacement: Bool
     @Binding var outputEncoding: Int
     @Binding var playSoundOnToggle: Bool
+
+    // Local state for Launch at Login – keeps SwiftUI in sync with SMAppService.
+    @State private var launchAtLoginEnabled = LaunchAtLoginManager.isOnForToggle
 
     private var shortcutDisplayString: String {
         var parts: [String] = []
@@ -179,16 +182,17 @@ struct GeneralSettingsView: View {
 
             // Start at Login
             VStack(alignment: .leading, spacing: 4) {
-                Toggle("Start at Login".localized(), isOn: Binding(
-                    get: { LaunchAtLoginManager.isOnForToggle },
-                    set: { newValue in
+                Toggle("Start at Login".localized(), isOn: $launchAtLoginEnabled)
+                    .onChange(of: launchAtLoginEnabled) { _, newValue in
                         do {
                             try LaunchAtLoginManager.setOn(newValue)
                         } catch {
-                            // Error handling is done via the warning text below
+                            // Revert on failure
+                            launchAtLoginEnabled = LaunchAtLoginManager.isOnForToggle
                         }
+                        // Sync back in case SMAppService ended up in a different state
+                        launchAtLoginEnabled = LaunchAtLoginManager.isOnForToggle
                     }
-                ))
 
                 if LaunchAtLoginManager.state == .requiresApproval {
                     Text("Approval required in System Settings…".localized())
@@ -202,6 +206,9 @@ struct GeneralSettingsView: View {
                         .fixedSize(horizontal: false, vertical: true)
                 }
             }
+        }
+        .onAppear {
+            launchAtLoginEnabled = LaunchAtLoginManager.isOnForToggle
         }
     }
 }

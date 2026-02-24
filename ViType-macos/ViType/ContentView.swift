@@ -43,6 +43,7 @@ struct ContentView: View {
     @AppStorage(AppExclusion.shortcutShiftKey) private var shortcutShift = false
     @AppStorage(AppExclusion.playSoundOnToggleKey) private var playSoundOnToggle = true
 
+    // Lazy-init: only created once, not on every re-render
     @StateObject private var frontmostAppMonitor = FrontmostAppMonitor()
 
     var body: some View {
@@ -69,38 +70,39 @@ struct ContentView: View {
 
             Divider()
 
-            // Tab content
-            Group {
-                switch selectedTab {
-                case .general:
-                    GeneralSettingsView(
-                        viTypeEnabled: $viTypeEnabled,
-                        shortcutKey: $shortcutKey,
-                        shortcutCommand: $shortcutCommand,
-                        shortcutOption: $shortcutOption,
-                        shortcutControl: $shortcutControl,
-                        shortcutShift: $shortcutShift,
-                        inputMethod: $inputMethod,
-                        tonePlacement: $tonePlacement,
-                        autoFixTone: $autoFixTone,
-                        freeTonePlacement: $freeTonePlacement,
-                        outputEncoding: $outputEncoding,
-                        playSoundOnToggle: $playSoundOnToggle
-                    )
+            // Tab content — use ScrollView to avoid layout jumps between tabs
+            ScrollView {
+                Group {
+                    switch selectedTab {
+                    case .general:
+                        GeneralSettingsView(
+                            viTypeEnabled: $viTypeEnabled,
+                            shortcutKey: $shortcutKey,
+                            shortcutCommand: $shortcutCommand,
+                            shortcutOption: $shortcutOption,
+                            shortcutControl: $shortcutControl,
+                            shortcutShift: $shortcutShift,
+                            inputMethod: $inputMethod,
+                            tonePlacement: $tonePlacement,
+                            autoFixTone: $autoFixTone,
+                            freeTonePlacement: $freeTonePlacement,
+                            outputEncoding: $outputEncoding,
+                            playSoundOnToggle: $playSoundOnToggle
+                        )
 
-                case .appExclusion:
-                    AppExclusionView(
-                        appExclusionEnabled: $appExclusionEnabled,
-                        excludedBundleIDsText: $excludedBundleIDsText,
-                        frontmostAppMonitor: frontmostAppMonitor
-                    )
+                    case .appExclusion:
+                        AppExclusionView(
+                            appExclusionEnabled: $appExclusionEnabled,
+                            excludedBundleIDsText: $excludedBundleIDsText,
+                            frontmostAppMonitor: frontmostAppMonitor
+                        )
+                    }
                 }
+                .frame(maxWidth: .infinity, alignment: .leading)
             }
-            .frame(maxWidth: .infinity, alignment: .leading)
         }
         .padding()
         .frame(width: 420)
-        .id(localizationManager.currentLanguage) // Force refresh when language changes
         .onChange(of: windowManager.requestedTab) { _, newTab in
             if let tab = newTab {
                 selectedTab = tab
@@ -114,7 +116,7 @@ struct ContentView: View {
 struct ShortcutKeyField: View {
     @Binding var key: String
     @State private var displayText: String = ""
-    @StateObject private var localizationManager = LocalizationManager.shared
+    @ObservedObject private var localizationManager = LocalizationManager.shared
     private static let allowedShortcutCharacters: Set<Character> = Set("abcdefghijklmnopqrstuvwxyz0123456789[]\\;',./`")
 
     var body: some View {

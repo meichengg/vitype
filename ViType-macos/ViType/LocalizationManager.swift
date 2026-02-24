@@ -43,6 +43,8 @@ final class LocalizationManager: ObservableObject {
     private(set) var bundle: Bundle = .main
     
     private init() {
+        // Ensure Vietnamese is the default language on first launch
+        UserDefaults.standard.register(defaults: [Self.languageKey: "vi"])
         // Load saved language or default to Vietnamese
         let savedLanguage = UserDefaults.standard.string(forKey: Self.languageKey) ?? "vi"
         self.currentLanguage = AppLanguage(rawValue: savedLanguage) ?? .vietnamese

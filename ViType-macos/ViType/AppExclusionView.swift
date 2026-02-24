@@ -8,7 +8,7 @@
 import SwiftUI
 
 struct AppExclusionView: View {
-    @StateObject private var localizationManager = LocalizationManager.shared
+    @ObservedObject private var localizationManager = LocalizationManager.shared
     
     @Binding var appExclusionEnabled: Bool
     @Binding var excludedBundleIDsText: String
