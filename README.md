@@ -13,17 +13,19 @@ ViType là bộ gõ tiếng Việt nhẹ, được xây dựng với **Rust core
 
 - **Hai kiểu gõ**: Telex (dùng chữ cái) và VNI (dùng số)
 - **Chuyển đổi thời gian thực**: Chuyển đổi ký tự tiếng Việt ngay khi gõ
+- **Gõ mượt, không giật**: Sử dụng kỹ thuật proxy event posting và diff-based minimal edit (lấy cảm hứng từ GõKey) để loại bỏ hiện tượng nhảy chữ khi gõ dấu
 - **Chế độ đặt dấu**: Kiểu cũ (chuẩn chính tả) hoặc Kiểu mới (đặt dấu vào nguyên âm chính)
 - **Tự động sửa dấu**: Tự động di chuyển dấu thanh khi thêm nguyên âm
 - **Bỏ qua kiểm tra âm tiết**: Tùy chọn bỏ qua kiểm tra cụm nguyên âm hợp lệ
 - **Loại trừ ứng dụng**: Tắt ViType cho các ứng dụng cụ thể
 - **Tích hợp Menu Bar**: Truy cập nhanh cài đặt và bật/tắt bộ gõ
+- **Đa ngôn ngữ**: Hỗ trợ giao diện tiếng Việt và tiếng Anh, chuyển đổi ngay lập tức
 - **Khởi động cùng hệ thống**: Tùy chọn tự động khởi động
 - **Tự động cập nhật**: Cơ chế cập nhật tích hợp qua Sparkle
 
 ## Cài đặt
 
-1. Tải file DMG từ [Releases](https://github.com/ttdatt/vitype/releases) hoặc [build từ mã nguồn](#build-từ-mã-nguồn)
+1. Tải file DMG từ [Releases](https://github.com/meichengg/vitype/releases) hoặc [build từ mã nguồn](#build-từ-mã-nguồn)
 2. Kéo `ViType.app` vào thư mục Applications
 3. Khởi chạy ViType
 4. **Cấp quyền Accessibility**: Khi được yêu cầu, vào System Settings > Privacy & Security > Accessibility và bật ViType. Sau đó khởi động lại ứng dụng ViType
@@ -85,7 +87,7 @@ Truy cập cài đặt qua icon menu bar:
 ### 1. Clone Repository
 
 ```bash
-git clone --recursive https://github.com/ttdatt/vitype.git
+git clone --recursive https://github.com/meichengg/vitype.git
 cd vitype
 ```
 
@@ -182,7 +184,6 @@ ViType/
 │   │   ├── MenuBarManager.swift      # UI menu bar
 │   │   ├── ContentView.swift         # Cửa sổ cài đặt chính
 │   │   ├── GeneralSettingsView.swift # Cài đặt chung
-│   │   ├── AdvancedSettingsView.swift# Cài đặt nâng cao
 │   │   ├── AppExclusionView.swift    # Cài đặt loại trừ ứng dụng
 │   │   └── vitype_core.h             # C header cho FFI
 │   ├── ViType.xcodeproj/
@@ -192,6 +193,13 @@ ViType/
 ├── AGENTS.md                 # Hướng dẫn repository
 └── LICENSE                   # GPL-3.0
 ```
+
+## Lời cảm ơn
+
+Dự án này được phát triển dựa trên nền tảng và cảm hứng từ:
+
+- **[ViType](https://github.com/ttdatt/vitype)** của [ttdatt](https://github.com/ttdatt) — Bộ gõ tiếng Việt gốc với kiến trúc Rust core + Swift UI
+- **[GõKey](https://github.com/huytd/goxkey)** của [huytd](https://github.com/huytd) — Kỹ thuật gõ mượt (proxy event posting, diff-based minimal edit, sentinel mechanism) được port sang ViType
 
 ## Giấy phép
 

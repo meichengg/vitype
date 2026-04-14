@@ -63,6 +63,7 @@ struct ContentView: View {
             }
             .pickerStyle(.segmented)
             .labelsHidden()
+            .id("tabs-\(localizationManager.currentLanguage.rawValue)")
 
             Divider()
 
@@ -94,14 +95,36 @@ struct ContentView: View {
                     }
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
+                .id("content-\(localizationManager.currentLanguage.rawValue)")
             }
         }
         .padding()
         .frame(width: 420)
+        .onAppear { updateWindowTitle() }
+        .onChange(of: localizationManager.currentLanguage) { _, _ in
+            updateWindowTitle()
+        }
         .onChange(of: windowManager.requestedTab) { _, newTab in
             if let tab = newTab {
                 selectedTab = tab
                 windowManager.requestedTab = nil
+            }
+        }
+    }
+
+    /// Force-update all settings window titles to the current language.
+    /// SwiftUI's `Window("title", id:)` only sets the title at creation time;
+    /// it does NOT update when the localized value changes.
+    private func updateWindowTitle() {
+        DispatchQueue.main.async {
+            let localizedTitle = "ViType Settings".localized()
+            for window in NSApp.windows {
+                guard window.styleMask.contains(.titled), !(window is NSPanel) else { continue }
+                guard window.identifier?.rawValue == "vitype.settings"
+                        || window.title.localizedCaseInsensitiveContains("ViType Settings")
+                        || window.title.localizedCaseInsensitiveContains("Cài đặt ViType")
+                else { continue }
+                window.title = localizedTitle
             }
         }
     }

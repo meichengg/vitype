@@ -242,6 +242,7 @@ struct GeneralSettingsView: View {
                     }
                 }
                 .pickerStyle(.menu)
+                .id("language-\(localizationManager.currentLanguage.rawValue)")
             }
 
             Divider()
@@ -288,6 +289,7 @@ struct GeneralSettingsView: View {
                     Text("VNI").tag(1)
                 }
                 .pickerStyle(.menu)
+                .id("inputMethod-\(localizationManager.currentLanguage.rawValue)")
                 Text("Input Method Help".localized())
                     .font(.caption).foregroundColor(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
@@ -302,6 +304,7 @@ struct GeneralSettingsView: View {
                     Text("Nucleus Only".localized()).tag(1)
                 }
                 .pickerStyle(.menu)
+                .id("tonePlacement-\(localizationManager.currentLanguage.rawValue)")
                 Text("Tone Placement Help".localized())
                     .font(.caption).foregroundColor(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
@@ -336,6 +339,7 @@ struct GeneralSettingsView: View {
                     Text("Composite Unicode".localized()).tag(1)
                 }
                 .pickerStyle(.menu)
+                .id("encoding-\(localizationManager.currentLanguage.rawValue)")
                 Text("Character Encoding Help".localized())
                     .font(.caption).foregroundColor(.secondary)
                     .fixedSize(horizontal: false, vertical: true)

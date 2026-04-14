@@ -71,6 +71,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var queuedKeyDownEvents: [QueuedKeyDownEvent] = []
     private var flushQueuedEventsScheduled: Bool = false
 
+    /// The event tap proxy from the current CGEventTap callback invocation.
+    /// Only valid during the synchronous execution of the callback.
+    /// Used for `tapPostEvent(proxy)` which posts events inline into the
+    /// event stream (like GoxKey), skipping our own tap — much faster than
+    /// `CGEvent.post(tap: .cghidEventTap)` which round-trips through HID.
+    private var currentProxy: CGEventTapProxy?
+
+    /// Tracks what is currently displayed on screen for the current word.
+    /// Used to compute minimal diff (like GoxKey's get_diff_parts) so we only
+    /// delete/retype the suffix that actually changed — eliminates flicker.
+    private var displayBuffer: String = ""
+
     // Modifier-only shortcut tracking
     private var modifierShortcutArmed = false
     private var keyPressedDuringModifiers = false
@@ -262,7 +274,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             place: .headInsertEventTap,
             options: .defaultTap,
             eventsOfInterest: mask,
-            callback: { _, type, event, refcon in
+            callback: { proxy, type, event, refcon in
                 let delegate = Unmanaged<AppDelegate>
                     .fromOpaque(refcon!)
                     .takeUnretainedValue()
@@ -274,6 +286,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                     delegate.handleMouseDown()
                     return Unmanaged.passUnretained(event)
                 }
+                // Store proxy for inline event posting (like GoxKey's CGEventTapPostEvent).
+                // Events posted via proxy skip our tap and go directly to the app.
+                delegate.currentProxy = proxy
+                defer { delegate.currentProxy = nil }
                 if type == .flagsChanged {
                     let suppress = delegate.handleFlagsChangedEvent(event: event)
                     return suppress ? nil : Unmanaged.passUnretained(event)
@@ -324,6 +340,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         pendingInjectedKeyDownCount = 0
         queuedKeyDownEvents.removeAll(keepingCapacity: true)
         flushQueuedEventsScheduled = false
+        displayBuffer = ""
         transformer.reset()
     }
 
@@ -491,6 +508,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let newState = !currentState
         UserDefaults.standard.set(newState, forKey: AppExclusion.viTypeEnabledKey)
         transformer.reset()
+        displayBuffer = ""
         
         // Play sound feedback if enabled
         if UserDefaults.standard.bool(forKey: AppExclusion.playSoundOnToggleKey) {
@@ -541,6 +559,27 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
 
         return InputSourceInfo(id: id, type: type)
+    }
+}
+
+// MARK: - Diff-based minimal edit (ported from GoxKey's get_diff_parts)
+extension AppDelegate {
+    /// Compute the minimal edit to transform `old` (on screen) into `new` (desired).
+    /// Returns (backspaceCount, suffix) where backspaceCount is chars to delete
+    /// and suffix is the new text to type after those backspaces.
+    private static func diffParts(old: String, new: String) -> (Int, String) {
+        let oldChars = Array(old)
+        let newChars = Array(new)
+
+        var common = 0
+        let minLen = min(oldChars.count, newChars.count)
+        while common < minLen && oldChars[common] == newChars[common] {
+            common += 1
+        }
+
+        let backspaceCount = oldChars.count - common
+        let suffix = common < newChars.count ? String(newChars[common...]) : ""
+        return (backspaceCount, suffix)
     }
 }
 
@@ -645,6 +684,7 @@ extension AppDelegate {
         // App exclusion: bypass Vietnamese transformation for excluded apps.
         if shouldBypassVietnameseInput() {
             transformer.reset()
+            displayBuffer = ""
             return false
         }
         
@@ -656,6 +696,10 @@ extension AppDelegate {
         // Backspace without modifiers - remove one char from buffer
         if keyCode == Self.backspaceKey && !hasActionModifier {
             transformer.deleteLastCharacter()
+            // Track: the character on screen will be deleted by the real backspace event
+            if !displayBuffer.isEmpty {
+                displayBuffer.removeLast()
+            }
             return false
         }
         
@@ -665,6 +709,7 @@ extension AppDelegate {
            Self.navigationKeys.contains(keyCode) ||
            hasActionModifier {
             transformer.reset()
+            displayBuffer = ""
             return false
         }
 
@@ -675,20 +720,88 @@ extension AppDelegate {
         
         if let action = transformer.process(input: s) {
             let extraDeleteCount = shouldWipeGhostSuggestion() ? 1 : 0
-            replace(last: action.deleteCount, with: action.text, extraDeleteCount: extraDeleteCount)
+
+            // Reconstruct what the new on-screen text should be:
+            // Engine says "delete `action.deleteCount` chars from the end and replace with `action.text`".
+            // Apply that to our displayBuffer to get the desired new screen state.
+            let newDisplay: String
+            if action.deleteCount >= displayBuffer.count {
+                // Engine wants to replace everything (including the just-typed char that hasn't appeared yet)
+                newDisplay = action.text
+            } else {
+                // Keep prefix, replace suffix
+                let keepCount = displayBuffer.count - action.deleteCount
+                let prefix = String(displayBuffer.prefix(keepCount))
+                newDisplay = prefix + action.text
+            }
+
+            // Compute minimal diff between what's on screen and desired output.
+            // The just-typed char `s` has NOT appeared on screen yet (we'll suppress this event),
+            // so displayBuffer reflects the true on-screen state.
+            let (diffBS, diffSuffix) = Self.diffParts(old: displayBuffer, new: newDisplay)
+
+            let totalBS = extraDeleteCount + diffBS
+            replace(last: totalBS, with: diffSuffix, extraDeleteCount: 0)
+            displayBuffer = newDisplay
             return true
         }
+
+        // No transformation — the char passes through to the app normally.
+        // Track it in displayBuffer since it will appear on screen.
+        displayBuffer.append(s)
         return false
     }
 
 
     private func replace(last count: Int, with text: String, extraDeleteCount: Int) {
+        let totalBS = extraDeleteCount + count
+
+        // Fast sync path (like GoxKey): use event tap proxy for ALL apps.
+        // Events posted via proxy skip our tap → zero round-trip, no flicker.
+        if currentProxy != nil {
+            // Sentinel mechanism (ported from GoxKey):
+            // When we'd erase ALL on-screen text and then type new text,
+            // Electron/Chromium apps (VSCode, etc.) can swallow the new text
+            // because the field becomes momentarily empty.
+            // Fix: keep one char as "sentinel", type replacement first char,
+            // move cursor left, delete the sentinel, move right, type rest.
+            let needsSentinel = totalBS > 1 && totalBS >= displayBuffer.count && !text.isEmpty
+            if needsSentinel {
+                // Delete all but one char (leave sentinel on screen)
+                sendBackspacesSync(count: totalBS - 1)
+                // Type first char of replacement text (field now has: sentinel + firstChar)
+                let firstChar = String(text.prefix(1))
+                let rest = String(text.dropFirst())
+                sendTextSync(firstChar)
+                // Move cursor left past the first char we just typed
+                sendArrowSync(left: true)
+                // Delete the sentinel char
+                sendBackspacesSync(count: 1)
+                // Move cursor right (back to end)
+                sendArrowSync(left: false)
+                // Type remaining text
+                if !rest.isEmpty {
+                    sendTextSync(rest)
+                }
+            } else {
+                if totalBS > 0 {
+                    sendBackspacesSync(count: totalBS)
+                }
+                if !text.isEmpty {
+                    sendTextSync(text)
+                }
+            }
+            flushQueuedKeyDownEvents()
+            return
+        }
+
+        // Async fallback when no proxy (should rarely happen)
         beginReplacementInjection()
-        
+
         DispatchQueue.global(qos: .userInteractive).async { [weak self] in
             guard let self = self else { return }
             self.characterInjector.injectSync(
-                backspaceCount: extraDeleteCount + count,
+                backspaceCount: totalBS,
                 text: text,
                 proxy: nil
             )
@@ -697,7 +810,65 @@ extension AppDelegate {
             }
         }
     }
+
+    /// Send backspaces synchronously via the event tap proxy (like GoxKey).
+    /// Events posted via proxy skip our own event tap → zero round-trip latency.
+    /// Reuses a single event pair for all backspaces (like GoxKey does).
+    private func sendBackspacesSync(count: Int) {
+        guard let proxy = currentProxy else { return }
+
+        // Use nil event source like GoxKey (null_event_source).
+        // Events with nil source get source_state_id != 1, so they won't
+        // be re-processed even if they somehow reach our tap.
+        guard let keyDown = CGEvent(keyboardEventSource: nil, virtualKey: 0x33, keyDown: true),
+              let keyUp = CGEvent(keyboardEventSource: nil, virtualKey: 0x33, keyDown: false) else { return }
+
+        keyDown.setIntegerValueField(.eventSourceUserData, value: injectedEventTag)
+        keyUp.setIntegerValueField(.eventSourceUserData, value: injectedEventTag)
+
+        // Reuse same event objects for all backspaces (like GoxKey)
+        for _ in 0..<count {
+            keyDown.tapPostEvent(proxy)
+            keyUp.tapPostEvent(proxy)
+        }
+    }
+
+    /// Send replacement text as a single CGEvent via the event tap proxy.
+    /// Only keyDown, no keyUp — matches GoxKey's send_string behavior.
+    private func sendTextSync(_ text: String) {
+        guard let proxy = currentProxy else { return }
+
+        var utf16 = Array(text.utf16)
+
+        // CGEvent unicode string limit is 20 UniChars per event
+        var offset = 0
+        while offset < utf16.count {
+            let end = min(offset + 20, utf16.count)
+            var chunk = Array(utf16[offset..<end])
+
+            if let keyDown = CGEvent(keyboardEventSource: nil, virtualKey: 0, keyDown: true) {
+                keyDown.keyboardSetUnicodeString(stringLength: chunk.count, unicodeString: &chunk)
+                keyDown.setIntegerValueField(.eventSourceUserData, value: injectedEventTag)
+                keyDown.tapPostEvent(proxy)
+            }
+
+            offset = end
+        }
+    }
     
+    /// Send a single arrow key event via the event tap proxy.
+    /// Used for sentinel mechanism — navigate around the sentinel char.
+    private func sendArrowSync(left: Bool) {
+        guard let proxy = currentProxy else { return }
+        let keyCode: CGKeyCode = left ? 123 : 124  // 123 = left arrow, 124 = right arrow
+        guard let keyDown = CGEvent(keyboardEventSource: nil, virtualKey: keyCode, keyDown: true),
+              let keyUp = CGEvent(keyboardEventSource: nil, virtualKey: keyCode, keyDown: false) else { return }
+        keyDown.setIntegerValueField(.eventSourceUserData, value: injectedEventTag)
+        keyUp.setIntegerValueField(.eventSourceUserData, value: injectedEventTag)
+        keyDown.tapPostEvent(proxy)
+        keyUp.tapPostEvent(proxy)
+    }
+
     private func enqueueKeyDownEvent(_ event: CGEvent) {
         let keyCode = event.getIntegerValueField(.keyboardEventKeycode)
         queuedKeyDownEvents.append(
@@ -711,6 +882,7 @@ extension AppDelegate {
         if queuedKeyDownEvents.count > 128 {
             queuedKeyDownEvents.removeAll(keepingCapacity: true)
             isInjectingReplacement = false
+            displayBuffer = ""
             transformer.reset()
         }
     }
@@ -748,14 +920,15 @@ extension AppDelegate {
     private func replayQueuedKeyDown(_ queued: QueuedKeyDownEvent) {
         let keyCode = queued.keyCode
         let flags = queued.flags
-        
+
         if isToggleShortcut(keyCode: keyCode, flags: flags) {
             toggleViType()
             return
         }
-        
+
         if shouldBypassVietnameseInput() {
             transformer.reset()
+            displayBuffer = ""
             if let s = queued.unicodeString {
                 // Use replace with 0 backspaces to handle text injection asynchronously and safely
                 replace(last: 0, with: s, extraDeleteCount: 0)
@@ -764,38 +937,57 @@ extension AppDelegate {
             }
             return
         }
-        
+
         let hasActionModifier = flags.contains(.maskCommand) ||
                                 flags.contains(.maskControl) ||
                                 flags.contains(.maskAlternate)
-        
+
         if keyCode == Self.backspaceKey && !hasActionModifier {
             transformer.deleteLastCharacter()
+            if !displayBuffer.isEmpty {
+                displayBuffer.removeLast()
+            }
             sendKey(CGKeyCode(Self.backspaceKey))
             return
         }
-        
+
         if keyCode == Self.forwardDeleteKey ||
            keyCode == Self.escapeKey ||
            Self.navigationKeys.contains(keyCode) ||
            hasActionModifier {
             transformer.reset()
+            displayBuffer = ""
             sendKey(CGKeyCode(keyCode))
             return
         }
-        
+
         guard let s = queued.unicodeString else {
             sendKey(CGKeyCode(keyCode))
             return
         }
-        
+
         refreshTransformerSettings()
-        
+
         if let action = transformer.process(input: s) {
             let extraDeleteCount = shouldWipeGhostSuggestion() ? 1 : 0
-            replace(last: action.deleteCount, with: action.text, extraDeleteCount: extraDeleteCount)
+
+            // Same diff logic as handle(event:)
+            let newDisplay: String
+            if action.deleteCount >= displayBuffer.count {
+                newDisplay = action.text
+            } else {
+                let keepCount = displayBuffer.count - action.deleteCount
+                let prefix = String(displayBuffer.prefix(keepCount))
+                newDisplay = prefix + action.text
+            }
+
+            let (diffBS, diffSuffix) = Self.diffParts(old: displayBuffer, new: newDisplay)
+            let totalBS = extraDeleteCount + diffBS
+            replace(last: totalBS, with: diffSuffix, extraDeleteCount: 0)
+            displayBuffer = newDisplay
         } else {
-            // Use replace with 0 backspaces
+            // No transformation — pass through. Track the char.
+            displayBuffer.append(s)
             replace(last: 0, with: s, extraDeleteCount: 0)
         }
     }

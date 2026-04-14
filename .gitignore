@@ -19,6 +19,12 @@ DerivedData
 *.ipa
 *.xcuserstate
 
+# Xcode derived data (local build cache)
+ViType-macos/.derivedData/
+
+# Build output
+ViType-macos/dist/
+
 # Rust
 target/
 
