@@ -167,6 +167,216 @@ mod key_transformer_tests {
     }
 
     #[test]
+    fn testInvalidTrailingLettersKeepAccentedTelexWordVisible() {
+        for suffix in ['c', 'a', 'b'] {
+            let mut engine = VitypeEngine::new();
+            let mut output: Vec<char> = Vec::new();
+
+            for ch in "ddawngr".chars() {
+                apply_key(&mut engine, &mut output, ch);
+            }
+            assert_eq!(output.iter().collect::<String>(), "đẳng");
+
+            apply_key(&mut engine, &mut output, suffix);
+            assert_eq!(output.iter().collect::<String>(), format!("đẳng{}", suffix));
+
+            backspace(&mut engine, &mut output);
+            assert_eq!(output.iter().collect::<String>(), "đẳng");
+            assert_eq!(engine.current_text(), "đẳng");
+        }
+    }
+
+    #[test]
+    fn testTelexToneKeysStillApplyAfterAccentedWord() {
+        let mut engine = VitypeEngine::new();
+        let mut output: Vec<char> = Vec::new();
+
+        for ch in "ddawngr".chars() {
+            apply_key(&mut engine, &mut output, ch);
+        }
+        assert_eq!(output.iter().collect::<String>(), "đẳng");
+
+        apply_key(&mut engine, &mut output, 'x');
+        assert_eq!(output.iter().collect::<String>(), "đẵng");
+    }
+
+    #[test]
+    fn testControlWDeleteNextTelexWordThenBackspaceRestoresPreviousCommittedWord() {
+        let mut engine = VitypeEngine::new();
+        let mut output: Vec<char> = Vec::new();
+
+        for ch in "ddawngr caaps".chars() {
+            apply_key(&mut engine, &mut output, ch);
+        }
+        assert_eq!(output.iter().collect::<String>(), "đẳng cấp");
+
+        engine.delete_current_word();
+        for _ in 0..3 {
+            output.pop();
+        }
+        assert_eq!(output.iter().collect::<String>(), "đẳng ");
+        assert_eq!(engine.current_text(), "");
+
+        backspace(&mut engine, &mut output);
+        assert_eq!(output.iter().collect::<String>(), "đẳng");
+        assert_eq!(engine.current_text(), "đẳng");
+
+        apply_key(&mut engine, &mut output, 's');
+        assert_eq!(output.iter().collect::<String>(), "đắng");
+    }
+
+    #[test]
+    fn testRepeatedWordDeleteThenBackspaceRestoresFirstWordForTelexToneChange() {
+        for (tone, expected) in [('s', "đắng"), ('f', "đằng"), ('r', "đẳng")] {
+            let mut engine = VitypeEngine::new();
+            let mut output: Vec<char> = Vec::new();
+
+            for ch in "ddawngr alpha beta gamma delta epsilon".chars() {
+                apply_key(&mut engine, &mut output, ch);
+            }
+            assert_eq!(
+                output.iter().collect::<String>(),
+                "đẳng alpha beta gamma delta epsilon"
+            );
+
+            for deleted in ["epsilon", "delta ", "gamma ", "beta ", "alpha "] {
+                engine.delete_current_word();
+                for _ in 0..deleted.chars().count() {
+                    output.pop();
+                }
+            }
+            assert_eq!(output.iter().collect::<String>(), "đẳng ");
+
+            backspace(&mut engine, &mut output);
+            assert_eq!(output.iter().collect::<String>(), "đẳng");
+            assert_eq!(engine.current_text(), "đẳng");
+
+            apply_key(&mut engine, &mut output, tone);
+            assert_eq!(output.iter().collect::<String>(), expected);
+        }
+    }
+
+    #[test]
+    fn testRepeatedOptionWordDeleteRestoresPreviousWordForTelexToneChange() {
+        for (tone, expected) in [('s', "đắng"), ('f', "đằng"), ('r', "đẳng")] {
+            let mut engine = VitypeEngine::new();
+            let mut output: Vec<char> = Vec::new();
+
+            for ch in "ddawngr alpha beta gamma delta epsilon".chars() {
+                apply_key(&mut engine, &mut output, ch);
+            }
+            assert_eq!(
+                output.iter().collect::<String>(),
+                "đẳng alpha beta gamma delta epsilon"
+            );
+
+            for expected_current in ["delta", "gamma", "beta", "alpha", "đẳng"] {
+                engine.delete_word_and_restore_previous();
+                assert_eq!(engine.current_text(), expected_current);
+            }
+
+            for _ in 0.."alpha beta gamma delta epsilon".chars().count() {
+                output.pop();
+            }
+            assert_eq!(output.iter().collect::<String>(), "đẳng ");
+            output.pop();
+            assert_eq!(output.iter().collect::<String>(), "đẳng");
+
+            apply_key(&mut engine, &mut output, tone);
+            assert_eq!(output.iter().collect::<String>(), expected);
+        }
+    }
+
+    #[test]
+    fn testControlWDeletesCapTuyetThenBackspaceChangesDangToneTelex() {
+        for (tone, expected) in [('s', "đắng"), ('f', "đằng"), ('r', "đẳng")] {
+            let mut engine = VitypeEngine::new();
+            let mut output: Vec<char> = Vec::new();
+
+            for ch in "ddawngr caaps tuyeetj".chars() {
+                apply_key(&mut engine, &mut output, ch);
+            }
+            assert_eq!(output.iter().collect::<String>(), "đẳng cấp tuyệt");
+
+            engine.delete_current_word();
+            for _ in 0.."tuyệt".chars().count() {
+                output.pop();
+            }
+
+            engine.delete_current_word();
+            for _ in 0.."cấp ".chars().count() {
+                output.pop();
+            }
+            assert_eq!(output.iter().collect::<String>(), "đẳng ");
+
+            backspace(&mut engine, &mut output);
+            assert_eq!(engine.current_text(), "đẳng");
+            assert_eq!(output.iter().collect::<String>(), "đẳng");
+
+            apply_key(&mut engine, &mut output, tone);
+            assert_eq!(output.iter().collect::<String>(), expected);
+        }
+    }
+
+    #[test]
+    fn testOptionBackspaceDeletesCapTuyetThenChangesDangToneTelex() {
+        for (tone, expected) in [('s', "đắng"), ('f', "đằng"), ('r', "đẳng")] {
+            let mut engine = VitypeEngine::new();
+            let mut output: Vec<char> = Vec::new();
+
+            for ch in "ddawngr caaps tuyeetj".chars() {
+                apply_key(&mut engine, &mut output, ch);
+            }
+            assert_eq!(output.iter().collect::<String>(), "đẳng cấp tuyệt");
+
+            engine.delete_word_and_restore_previous();
+            for _ in 0.."tuyệt".chars().count() {
+                output.pop();
+            }
+            assert_eq!(engine.current_text(), "cấp");
+
+            engine.delete_word_and_restore_previous();
+            for _ in 0.." cấp ".chars().count() {
+                output.pop();
+            }
+            assert_eq!(engine.current_text(), "đẳng");
+            assert_eq!(output.iter().collect::<String>(), "đẳng");
+
+            apply_key(&mut engine, &mut output, tone);
+            assert_eq!(output.iter().collect::<String>(), expected);
+        }
+    }
+
+    #[test]
+    fn testWordDeleteThenToneKeyEditsPreviousCommittedWordTelex() {
+        for (tone, expected) in [('s', "đắng "), ('f', "đằng "), ('r', "đẳng ")] {
+            let mut engine = VitypeEngine::new();
+            let mut output: Vec<char> = Vec::new();
+
+            for ch in "ddawngr caaps tuyeetj".chars() {
+                apply_key(&mut engine, &mut output, ch);
+            }
+            assert_eq!(output.iter().collect::<String>(), "đẳng cấp tuyệt");
+
+            engine.delete_current_word();
+            for _ in 0.."tuyệt".chars().count() {
+                output.pop();
+            }
+
+            engine.delete_current_word();
+            for _ in 0.."cấp ".chars().count() {
+                output.pop();
+            }
+            assert_eq!(output.iter().collect::<String>(), "đẳng ");
+            assert_eq!(engine.current_text(), "");
+
+            apply_key(&mut engine, &mut output, tone);
+            assert_eq!(output.iter().collect::<String>(), expected);
+            assert_eq!(engine.current_text(), "");
+        }
+    }
+
+    #[test]
     fn testEnterClearsHistoryAndDisablesBoundaryBackspaceRestore() {
         for enter in ['\r', '\n'] {
             let mut engine = VitypeEngine::new();
@@ -207,7 +417,7 @@ mod key_transformer_tests {
     }
 
     #[test]
-    fn testWordHistoryIsLimitedToRecentWords() {
+    fn testWordHistoryKeepsCommittedWords() {
         let mut engine = VitypeEngine::new();
         let mut output: Vec<char> = Vec::new();
 
@@ -223,7 +433,7 @@ mod key_transformer_tests {
             .iter()
             .filter(|seg| matches!(seg, HistorySegment::Word(_)))
             .count();
-        assert_eq!(word_count, 3);
+        assert_eq!(word_count, 5);
         assert_eq!(output.iter().collect::<String>(), "ta ta ta ta ta ");
     }
 

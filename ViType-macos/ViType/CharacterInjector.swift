@@ -46,82 +46,11 @@ class CharacterInjector {
     /// This prevents race conditions where backspace arrives before previous injection is rendered
     private let injectionSemaphore = DispatchSemaphore(value: 1)
     
-    /// Known TUI/CLI apps with slow event loops that need extra injection delays.
-    /// These apps (e.g. Ink/React-based) render at ~30fps, causing per-keystroke
-    /// CGEvent injection at 10ms intervals to be swallowed.
-    private let knownSlowTUIApps: Set<String> = [
-        "claude",       // Claude CLI (Anthropic) - Ink/React-based TUI
-        "aider",        // Aider - terminal AI coding assistant
-        "codex",        // OpenAI Codex CLI
-    ]
-    
-    /// All terminal emulator bundle IDs (union of fast + slow)
-    private let allTerminalBundleIDs: Set<String> = [
-        "io.alacritty", "com.mitchellh.ghostty", "net.kovidgoyal.kitty",
-        "com.github.wez.wezterm", "com.raphaelamorim.rio",
-        "com.apple.Terminal", "com.googlecode.iterm2", "dev.warp.Warp-Stable",
-        "co.zeit.hyper", "org.tabby", "com.termius-dmg.mac",
-    ]
-
-    /// Cached TUI detection result to avoid scanning process tree on every keystroke
-    private var cachedTUIResult: Bool = false
-    private var cachedTUICheckTime: CFAbsoluteTime = 0
-    private var cachedTUITerminalPid: pid_t = 0
-
     // MARK: - Initialization
     
     init() {
         // Use .privateState to isolate injected events from system event state
         eventSource = CGEventSource(stateID: .privateState)
-    }
-    
-    // MARK: - TUI Detection
-    
-    /// Check if the frontmost terminal is running a known slow TUI app.
-    /// Scans process descendants up to 4 levels deep (terminal → shell → app).
-    /// Result is cached for 2 seconds to minimize overhead.
-    private func isTerminalRunningSlowTUI() -> Bool {
-        guard let frontApp = NSWorkspace.shared.frontmostApplication else { return false }
-        let terminalPid = frontApp.processIdentifier
-        
-        // Use cache if still fresh and same terminal
-        let now = CFAbsoluteTimeGetCurrent()
-        if terminalPid == cachedTUITerminalPid && (now - cachedTUICheckTime) < 2.0 {
-            return cachedTUIResult
-        }
-        
-        cachedTUICheckTime = now
-        cachedTUITerminalPid = terminalPid
-        cachedTUIResult = hasDescendantMatchingTUI(parentPid: terminalPid, maxDepth: 4)
-        return cachedTUIResult
-    }
-    
-    /// BFS scan of process tree to find known TUI apps among descendants.
-    private func hasDescendantMatchingTUI(parentPid: pid_t, maxDepth: Int) -> Bool {
-        var queue: [(pid: pid_t, depth: Int)] = [(parentPid, 0)]
-        
-        while !queue.isEmpty {
-            let (pid, depth) = queue.removeFirst()
-            guard depth < maxDepth else { continue }
-            
-            var childPids = [pid_t](repeating: 0, count: 256)
-            let bufSize = Int32(MemoryLayout<pid_t>.stride * childPids.count)
-            let byteCount = proc_listchildpids(pid, &childPids, bufSize)
-            guard byteCount > 0 else { continue }
-            
-            let count = Int(byteCount) / MemoryLayout<pid_t>.stride
-            for i in 0..<count where childPids[i] > 0 {
-                var nameBuffer = [CChar](repeating: 0, count: Int(MAXCOMLEN) + 1)
-                proc_name(childPids[i], &nameBuffer, UInt32(nameBuffer.count))
-                let name = String(cString: nameBuffer)
-                
-                if !name.isEmpty && knownSlowTUIApps.contains(name) {
-                    return true
-                }
-                queue.append((childPids[i], depth + 1))
-            }
-        }
-        return false
     }
     
     /// Detect injection method based on current app
@@ -143,16 +72,8 @@ class CharacterInjector {
             return (.fast, .chunked)
         }
         
-        // Only actual terminal emulator apps should trigger TUI descendant scan.
-        // Editor hosts (e.g. VS Code integrated terminal) stay on .slow to avoid
-        // terminal-specific .extraSlow behavior in normal editor text fields.
-        let canScanForTUI = allTerminalBundleIDs.contains(bundleID)
-
-        // Terminal-like apps -> maybe TUI, otherwise slow
+        // Terminal-like apps -> slow
         if fastTerminals.contains(bundleID) || slowTerminals.contains(bundleID) {
-            if canScanForTUI && isTerminalRunningSlowTUI() {
-                return (.extraSlow, .oneByOne)
-            }
             return (.slow, .oneByOne)
         }
         
@@ -177,16 +98,6 @@ class CharacterInjector {
         eventSource = CGEventSource(stateID: .privateState)
         
         let (method, textMethod) = detectInjectionMethod()
-        
-        // TUI apps: use atomic single-event replacement to eliminate cursor jumping.
-        // Instead of separate BS + text events (cursor jumps left then right),
-        // pack DEL chars + replacement text in one CGEvent unicode string.
-        // Terminal writes everything to PTY in one write() → TUI processes atomically.
-        if method == .extraSlow {
-            sendAtomicReplacement(backspaceCount: backspaceCount, text: text)
-            usleep(20000) // 20ms settle for TUI render
-            return
-        }
         
         let delays = method.delays
         
@@ -215,53 +126,6 @@ class CharacterInjector {
         // Settle time
         let settleTime: UInt32 = (method == .slow) ? 20000 : 5000
         usleep(settleTime)
-    }
-    
-    // MARK: - Atomic Replacement (TUI)
-    
-    /// Send backspace + replacement text as a single CGEvent.
-    /// Encodes DEL chars (0x7F) + text in one unicode string so the terminal
-    /// writes everything to PTY atomically — no visible cursor jumping.
-    private func sendAtomicReplacement(backspaceCount: Int, text: String) {
-        guard let source = eventSource else { return }
-        guard backspaceCount > 0 || !text.isEmpty else { return }
-        
-        var utf16: [UniChar] = []
-        
-        // DEL (0x7F) matches what terminals send for backspace key
-        for _ in 0..<backspaceCount {
-            utf16.append(0x7F)
-        }
-        
-        // Append replacement text
-        utf16.append(contentsOf: text.utf16)
-        
-        // Send in chunks of 20 UniChar (CGEvent limit)
-        var offset = 0
-        let chunkSize = 20
-        
-        while offset < utf16.count {
-            let end = min(offset + chunkSize, utf16.count)
-            var chunk = Array(utf16[offset..<end])
-            
-            if let keyDown = CGEvent(keyboardEventSource: source, virtualKey: 0, keyDown: true),
-               let keyUp = CGEvent(keyboardEventSource: source, virtualKey: 0, keyDown: false) {
-                
-                keyDown.keyboardSetUnicodeString(stringLength: chunk.count, unicodeString: &chunk)
-                keyUp.keyboardSetUnicodeString(stringLength: chunk.count, unicodeString: &chunk)
-                
-                keyDown.setIntegerValueField(.eventSourceUserData, value: kViTypeEventMarker)
-                keyUp.setIntegerValueField(.eventSourceUserData, value: kViTypeEventMarker)
-                
-                keyDown.post(tap: .cghidEventTap)
-                keyUp.post(tap: .cghidEventTap)
-            }
-            
-            offset = end
-            if offset < utf16.count {
-                usleep(5000) // 5ms between chunks (rarely needed for Vietnamese)
-            }
-        }
     }
     
     // MARK: - Internal Sending Methods

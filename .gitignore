@@ -29,3 +29,5 @@ ViType-macos/dist/
 target/
 
 ViType-macos/libvitype_core.a
+*.profraw
+__pycache__/

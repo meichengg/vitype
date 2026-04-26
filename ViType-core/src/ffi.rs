@@ -64,6 +64,77 @@ pub extern "C" fn vitype_engine_delete_last_character(engine: *mut VitypeEngine)
 }
 
 #[no_mangle]
+pub extern "C" fn vitype_engine_delete_current_word(engine: *mut VitypeEngine) {
+    if engine.is_null() {
+        return;
+    }
+    unsafe {
+        (*engine).delete_current_word();
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn vitype_engine_delete_word_and_restore_previous(engine: *mut VitypeEngine) {
+    if engine.is_null() {
+        return;
+    }
+    unsafe {
+        (*engine).delete_word_and_restore_previous();
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn vitype_engine_current_text(engine: *mut VitypeEngine) -> *mut c_char {
+    if engine.is_null() {
+        return ptr::null_mut();
+    }
+
+    let (text, output_encoding) =
+        unsafe { ((*engine).current_text(), (*engine).output_encoding()) };
+    let output_text = convert_to_output_encoding(text, output_encoding);
+    CString::new(output_text)
+        .unwrap_or_else(|_| CString::new("").unwrap())
+        .into_raw()
+}
+
+#[no_mangle]
+pub extern "C" fn vitype_engine_apply_tone_to_text(
+    engine: *mut VitypeEngine,
+    text_utf8: *const c_char,
+    input_utf8: *const c_char,
+) -> VitypeTransformResult {
+    if engine.is_null() || text_utf8.is_null() || input_utf8.is_null() {
+        return empty_result();
+    }
+
+    let text = unsafe { CStr::from_ptr(text_utf8) }
+        .to_string_lossy()
+        .nfc()
+        .collect::<String>();
+    let input = unsafe { CStr::from_ptr(input_utf8) }.to_string_lossy();
+    let delete_count = text.chars().count() as i32;
+    let (result, output_encoding) = unsafe {
+        (
+            (*engine).apply_tone_to_text(&text, &input),
+            (*engine).output_encoding(),
+        )
+    };
+
+    match result {
+        Some(text) => {
+            let output_text = convert_to_output_encoding(text, output_encoding);
+            let c_text = CString::new(output_text).unwrap_or_else(|_| CString::new("").unwrap());
+            VitypeTransformResult {
+                has_action: true,
+                delete_count,
+                text: c_text.into_raw(),
+            }
+        }
+        None => empty_result(),
+    }
+}
+
+#[no_mangle]
 pub extern "C" fn vitype_engine_set_auto_fix_tone(engine: *mut VitypeEngine, enabled: bool) {
     if engine.is_null() {
         return;

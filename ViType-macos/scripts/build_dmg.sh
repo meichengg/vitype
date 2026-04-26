@@ -40,6 +40,7 @@ EOF
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"
 REPO_ROOT="$(cd "${PROJECT_DIR}/.." && pwd)"
+DERIVED_DATA="${PROJECT_DIR}/.derivedData"
 
 SKIP_BUILD="0"
 APP_PATH=""
@@ -112,6 +113,8 @@ require_cmd() {
 require_cmd hdiutil
 require_cmd /usr/bin/ditto
 require_cmd /usr/bin/plutil
+require_cmd /usr/bin/pkill
+require_cmd /usr/bin/rsync
 
 # Validate signing/notarization options
 if [ "${NOTARIZE_APP}" = "1" ] && [ "${SIGN_APP}" != "1" ]; then
@@ -146,7 +149,6 @@ fi
 if [ "${SKIP_BUILD}" != "1" ]; then
   require_cmd xcodebuild
 
-  DERIVED_DATA="${PROJECT_DIR}/.derivedData"
   rm -rf "${DERIVED_DATA}"
 
   if [ "${SIGN_APP}" = "1" ]; then
@@ -184,6 +186,9 @@ if [ ! -d "${APP_PATH}" ]; then
   echo "error: app not found: ${APP_PATH}" >&2
   exit 1
 fi
+
+echo "Stopping running ViType instances..."
+/usr/bin/pkill -x "ViType" 2>/dev/null || true
 
 INFO_PLIST="${APP_PATH}/Contents/Info.plist"
 if [ ! -f "${INFO_PLIST}" ]; then
@@ -282,6 +287,10 @@ if [ "${NOTARIZE_APP}" = "1" ]; then
   echo "Notarization complete."
 fi
 
+INSTALL_PATH="/Applications/ViType.app"
+echo "Installing app to ${INSTALL_PATH}..."
+/usr/bin/rsync -a --delete "${APP_PATH}/" "${INSTALL_PATH}/"
+
 APP_NAME="$(basename "${APP_PATH}" .app)"
 VERSION="$(/usr/bin/plutil -extract CFBundleShortVersionString raw -o - "${INFO_PLIST}" 2>/dev/null || true)"
 BUILD="$(/usr/bin/plutil -extract CFBundleVersion raw -o - "${INFO_PLIST}" 2>/dev/null || true)"
@@ -301,20 +310,80 @@ cleanup() {
 }
 trap cleanup EXIT
 
-/usr/bin/ditto "${APP_PATH}" "${STAGING_DIR}/${APP_NAME}.app"
-ln -s "/Applications" "${STAGING_DIR}/Applications"
-
 DMG_BASENAME="${APP_NAME}-${VERSION}(${BUILD}).dmg"
 DMG_PATH="${OUT_DIR}/${DMG_BASENAME}"
 rm -f "${DMG_PATH}"
 
+EXISTING_MOUNT="/Volumes/${VOLNAME}"
+if [ -d "${EXISTING_MOUNT}" ]; then
+  hdiutil detach "${EXISTING_MOUNT}" -quiet || hdiutil detach "${EXISTING_MOUNT}" -force || true
+fi
+
+# --- Create a read-write DMG, mount, set Finder layout, convert to read-only ---
+# This pre-bakes .DS_Store so the window opens instantly with correct icon positions.
+TEMP_DMG="${STAGING_DIR}/temp.dmg"
+
+# Estimate size: app size + 20MB headroom
+APP_SIZE_KB=$(du -sk "${APP_PATH}" | cut -f1)
+DMG_SIZE_MB=$(( (APP_SIZE_KB / 1024) + 20 ))
+
 hdiutil create \
   -volname "${VOLNAME}" \
-  -srcfolder "${STAGING_DIR}" \
-  -format UDZO \
-  -imagekey zlib-level=9 \
-  -ov \
-  "${DMG_PATH}"
+  -size "${DMG_SIZE_MB}m" \
+  -fs HFS+ \
+  -type UDIF \
+  "${TEMP_DMG}"
+
+# Mount read-write
+MOUNT_DIR=$(hdiutil attach "${TEMP_DMG}" -readwrite -noverify -noautoopen \
+  | grep "Apple_HFS" | sed 's/.*Apple_HFS[[:space:]]*//')
+
+if [ -z "${MOUNT_DIR}" ]; then
+  echo "error: failed to mount temporary DMG" >&2
+  exit 1
+fi
+
+# Copy app + Applications symlink + prevent Spotlight indexing
+/usr/bin/ditto "${APP_PATH}" "${MOUNT_DIR}/${APP_NAME}.app"
+ln -s "/Applications" "${MOUNT_DIR}/Applications"
+touch "${MOUNT_DIR}/.metadata_never_index"
+
+# Set Finder window layout (best-effort — may fail in headless/CI)
+if [ -n "${DISPLAY:-}" ] || [ "$(uname)" = "Darwin" ]; then
+  osascript <<APPLESCRIPT 2>/dev/null || true
+tell application "Finder"
+  tell disk "${VOLNAME}"
+    open
+    set current view of container window to icon view
+    set toolbar visible of container window to false
+    set statusbar visible of container window to false
+    set bounds of container window to {100, 100, 640, 400}
+    set theViewOptions to the icon view options of container window
+    set arrangement of theViewOptions to not arranged
+    set icon size of theViewOptions to 80
+    set position of item "${APP_NAME}.app" of container window to {140, 150}
+    set position of item "Applications" of container window to {400, 150}
+    close
+    open
+    update without registering applications
+    delay 1
+    close
+  end tell
+end tell
+APPLESCRIPT
+  sync
+  sleep 1
+fi
+
+# Unmount
+hdiutil detach "${MOUNT_DIR}" -quiet || hdiutil detach "${MOUNT_DIR}" -force
+
+# Convert to uncompressed read-only. For a small app, this mounts noticeably faster
+# than compressed DMGs because Finder does not have to decompress before showing it.
+hdiutil convert "${TEMP_DMG}" \
+  -format UDRO \
+  -o "${DMG_PATH}" \
+  -ov
 
 echo "Created DMG: ${DMG_PATH}"
 

@@ -77,11 +77,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// event stream (like GoxKey), skipping our own tap — much faster than
     /// `CGEvent.post(tap: .cghidEventTap)` which round-trips through HID.
     private var currentProxy: CGEventTapProxy?
-
     /// Tracks what is currently displayed on screen for the current word.
     /// Used to compute minimal diff (like GoxKey's get_diff_parts) so we only
     /// delete/retype the suffix that actually changed — eliminates flicker.
     private var displayBuffer: String = ""
+    private var rawCompositionBuffer: String = ""
+    private var cursorContextToneEditArmed: Bool = false
+    private var cursorContextToneEditCache: CursorToneContext?
+    private var localTextContext: [Character] = []
+    private var localCursorOffset: Int = 0
 
     // Modifier-only shortcut tracking
     private var modifierShortcutArmed = false
@@ -97,6 +101,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var cachedInputSourceID: String?
     private var cachedInputSourceType: CFString?
     private var tapRestartPending: Bool = false
+    private var lastRawTextInputResult: Bool = false
+    private var rawTextInputCacheBundleID: String?
+    private var rawTextInputCacheValue: Bool = false
+    private var rawTextInputCacheTime: TimeInterval = 0
+    private let rawTextInputCacheTTL: TimeInterval = 10
     
     // Unsupported input sources that should bypass Vietnamese transformation
     private let unsupportedInputSources: Set<String> = [
@@ -280,7 +289,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                     .takeUnretainedValue()
                 if type == .tapDisabledByTimeout || type == .tapDisabledByUserInput {
                     delegate.handleTapDisabled()
-                    return nil
+                    return Unmanaged.passUnretained(event)
                 }
                 if type == .leftMouseDown || type == .rightMouseDown || type == .otherMouseDown {
                     delegate.handleMouseDown()
@@ -341,6 +350,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         queuedKeyDownEvents.removeAll(keepingCapacity: true)
         flushQueuedEventsScheduled = false
         displayBuffer = ""
+        rawCompositionBuffer = ""
+        cursorContextToneEditArmed = false
+        cursorContextToneEditCache = nil
+        localTextContext.removeAll(keepingCapacity: true)
+        localCursorOffset = 0
+        lastRawTextInputResult = false
         transformer.reset()
     }
 
@@ -389,6 +404,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             guard let self else { return }
             let app = notification.userInfo?[NSWorkspace.applicationUserInfoKey] as? NSRunningApplication
             frontmostBundleID = app?.bundleIdentifier ?? NSWorkspace.shared.frontmostApplication?.bundleIdentifier
+            invalidateRawTextInputCache()
             resetInputState()
         }
 
@@ -578,8 +594,41 @@ extension AppDelegate {
         }
 
         let backspaceCount = oldChars.count - common
-        let suffix = common < newChars.count ? String(newChars[common...]) : ""
+        let prefixLength = common
+        let suffix = String(newChars[prefixLength...])
         return (backspaceCount, suffix)
+    }
+
+    private static func isWordBoundary(_ string: String) -> Bool {
+        guard !string.isEmpty else { return false }
+        return string.unicodeScalars.allSatisfy {
+            CharacterSet.whitespacesAndNewlines.contains($0) ||
+            CharacterSet.punctuationCharacters.contains($0)
+        }
+    }
+
+    private static func splitTrailingBoundary(_ text: String) -> (String, String) {
+        var body = Array(text)
+        var boundary: [Character] = []
+        while let last = body.last, Self.isWordBoundary(String(last)) {
+            boundary.insert(body.removeLast(), at: 0)
+        }
+        return (String(body), String(boundary))
+    }
+
+    private static func isCursorContextTrailingBoundary(_ string: String) -> Bool {
+        guard isWordBoundary(string) else { return false }
+        return !string.unicodeScalars.contains { CharacterSet.newlines.contains($0) }
+    }
+
+    private static func isToneEditKey(_ string: String, inputMethod: InputMethod) -> Bool {
+        guard string.count == 1, let ch = string.first else { return false }
+        switch inputMethod {
+        case .telex:
+            return ["s", "f", "r", "x", "j", "z"].contains(String(ch).lowercased())
+        case .vni:
+            return ("0"..."5").contains(String(ch))
+        }
     }
 }
 
@@ -594,11 +643,34 @@ extension AppDelegate {
     private static let backspaceKey: Int64 = 51
     private static let forwardDeleteKey: Int64 = 117
     private static let escapeKey: Int64 = 53
+    private static let wKey: Int64 = 13
     private static let navigationKeys: Set<Int64> = [
         48,                   // Tab (covers Tab/Shift+Tab focus traversal)
         123, 124, 125, 126,  // Arrow keys: left, right, down, up
         115, 119,            // Home, End
         116, 121             // Page Up, Page Down
+    ]
+    private static let rawTextInputBundleIDs: Set<String> = [
+        "dev.warp.warp-stable"
+    ]
+    private static let directReplacementBundleIDs: Set<String> = [
+        "com.exafunction.windsurf",
+        "net.kovidgoyal.kitty",
+        "io.alacritty",
+        "com.github.wez.wezterm",
+        "com.mitchellh.ghostty",
+        "com.apple.terminal",
+        "com.googlecode.iterm2",
+        "com.microsoft.vscode",
+        "com.microsoft.vscodeinsiders",
+        "com.visualstudio.code.oss"
+    ]
+    private static let directReplacementBundleIDFragments: [String] = [
+        "windsurf",
+        "cursor",
+        "vscode",
+        "codeium",
+        "electron"
     ]
 
     // Key code mapping for a-z, 0-9, punctuation, and space
@@ -625,6 +697,20 @@ extension AppDelegate {
         let relevantModifiers: CGEventFlags = [.maskCommand, .maskAlternate, .maskControl, .maskShift]
         let pressedModifiers = flags.intersection(relevantModifiers)
         return pressedModifiers == shortcutModifiers
+    }
+
+    private static func isControlW(keyCode: Int64, flags: CGEventFlags) -> Bool {
+        keyCode == wKey &&
+            flags.contains(.maskControl) &&
+            !flags.contains(.maskCommand) &&
+            !flags.contains(.maskAlternate)
+    }
+
+    private static func isOptionBackspace(keyCode: Int64, flags: CGEventFlags) -> Bool {
+        keyCode == backspaceKey &&
+            flags.contains(.maskAlternate) &&
+            !flags.contains(.maskCommand) &&
+            !flags.contains(.maskControl)
     }
 
     /// Handles flagsChanged events for modifier-only shortcuts (e.g. Ctrl+Shift).
@@ -685,6 +771,8 @@ extension AppDelegate {
         if shouldBypassVietnameseInput() {
             transformer.reset()
             displayBuffer = ""
+            rawCompositionBuffer = ""
+            clearCursorToneEditContext()
             return false
         }
         
@@ -692,24 +780,59 @@ extension AppDelegate {
         let hasActionModifier = flags.contains(.maskCommand) ||
                                 flags.contains(.maskControl) ||
                                 flags.contains(.maskAlternate)
+
+        if Self.isControlW(keyCode: keyCode, flags: flags) {
+            transformer.deleteCurrentWord()
+            deleteLocalWordBeforeCursor()
+            displayBuffer = ""
+            rawCompositionBuffer = ""
+            armCursorToneEditContext()
+            lastRawTextInputResult = false
+            return false
+        }
+
+        if Self.isOptionBackspace(keyCode: keyCode, flags: flags) {
+            transformer.deleteCurrentWord()
+            deleteLocalWordBeforeCursor()
+            displayBuffer = ""
+            rawCompositionBuffer = ""
+            armCursorToneEditContext()
+            lastRawTextInputResult = false
+            return false
+        }
         
         // Backspace without modifiers - remove one char from buffer
         if keyCode == Self.backspaceKey && !hasActionModifier {
+            let shouldKeepCursorToneContext = cursorContextToneEditArmed
             transformer.deleteLastCharacter()
-            // Track: the character on screen will be deleted by the real backspace event
-            if !displayBuffer.isEmpty {
-                displayBuffer.removeLast()
+            deleteLocalCharacterBeforeCursor()
+            displayBuffer = transformer.currentText()
+            if shouldKeepCursorToneContext {
+                armCursorToneEditContext()
+            } else {
+                clearCursorToneEditContext()
+            }
+            if !rawCompositionBuffer.isEmpty {
+                rawCompositionBuffer.removeLast()
             }
             return false
         }
         
-        // Navigation keys, forward delete, escape, or any key with action modifiers - reset buffer
+        let isNavigationKey = Self.navigationKeys.contains(keyCode)
         if keyCode == Self.forwardDeleteKey ||
            keyCode == Self.escapeKey ||
-           Self.navigationKeys.contains(keyCode) ||
+           isNavigationKey ||
            hasActionModifier {
             transformer.reset()
             displayBuffer = ""
+            rawCompositionBuffer = ""
+            if isNavigationKey {
+                updateLocalCursorForNavigation(keyCode: keyCode, flags: flags)
+                armCursorToneEditContext()
+            } else {
+                clearCursorToneEditContext()
+            }
+            lastRawTextInputResult = false
             return false
         }
 
@@ -717,9 +840,31 @@ extension AppDelegate {
 
         // Update settings from UserDefaults
         refreshTransformerSettings()
+
+        if tryApplyCursorContextTone(input: s) {
+            return true
+        }
+
+        if Self.isWordBoundary(s) {
+            _ = transformer.process(input: s)
+            insertLocalText(s)
+            rawCompositionBuffer = ""
+            displayBuffer = ""
+            clearCursorToneEditContext()
+            return false
+        }
         
         if let action = transformer.process(input: s) {
-            let extraDeleteCount = shouldWipeGhostSuggestion() ? 1 : 0
+            let rawMode = shouldUseRawTextInputReplacement()
+            let extraDeleteCount = rawMode ? 0 : (shouldWipeGhostSuggestion() ? 1 : 0)
+
+            if displayBuffer.isEmpty && action.deleteCount > 0 {
+                let adjusted = adjustedReplacementForCursorContext(deleteCount: action.deleteCount, text: action.text)
+                replace(last: adjusted.0, with: adjusted.1, extraDeleteCount: 0, rawModeOverride: rawMode)
+                replaceLocalTextBeforeCursor(deleteCount: adjusted.0, with: adjusted.1)
+                displayBuffer = adjusted.1
+                return true
+            }
 
             // Reconstruct what the new on-screen text should be:
             // Engine says "delete `action.deleteCount` chars from the end and replace with `action.text`".
@@ -735,51 +880,65 @@ extension AppDelegate {
                 newDisplay = prefix + action.text
             }
 
-            // Compute minimal diff between what's on screen and desired output.
-            // The just-typed char `s` has NOT appeared on screen yet (we'll suppress this event),
-            // so displayBuffer reflects the true on-screen state.
-            let (diffBS, diffSuffix) = Self.diffParts(old: displayBuffer, new: newDisplay)
-
-            let totalBS = extraDeleteCount + diffBS
-            replace(last: totalBS, with: diffSuffix, extraDeleteCount: 0)
+            if rawMode {
+                let (diffBS, diffSuffix) = Self.diffParts(old: displayBuffer, new: newDisplay)
+                replace(last: diffBS, with: diffSuffix, extraDeleteCount: 0, rawModeOverride: true)
+                replaceLocalTextBeforeCursor(deleteCount: diffBS, with: diffSuffix)
+                displayBuffer = newDisplay
+                clearCursorToneEditContext()
+                return true
+            } else {
+                // Compute minimal diff between what's on screen and desired output.
+                // The just-typed char `s` has NOT appeared on screen yet (we'll suppress this event),
+                // so displayBuffer reflects the true on-screen state.
+                let (diffBS, diffSuffix) = Self.diffParts(old: displayBuffer, new: newDisplay)
+                let totalBS = extraDeleteCount + diffBS
+                replace(last: totalBS, with: diffSuffix, extraDeleteCount: 0, rawModeOverride: rawMode)
+                replaceLocalTextBeforeCursor(deleteCount: diffBS, with: diffSuffix)
+            }
             displayBuffer = newDisplay
+            clearCursorToneEditContext()
             return true
         }
 
         // No transformation — the char passes through to the app normally.
         // Track it in displayBuffer since it will appear on screen.
-        displayBuffer.append(s)
+        if Self.isWordBoundary(s) {
+            displayBuffer = ""
+        } else {
+            displayBuffer.append(s)
+        }
+        insertLocalText(s)
+        clearCursorToneEditContext()
         return false
     }
 
 
-    private func replace(last count: Int, with text: String, extraDeleteCount: Int) {
+    private func replace(last count: Int, with text: String, extraDeleteCount: Int, rawModeOverride: Bool? = nil) {
         let totalBS = extraDeleteCount + count
+        let rawMode = rawModeOverride ?? shouldUseRawTextInputReplacement()
 
         // Fast sync path (like GoxKey): use event tap proxy for ALL apps.
         // Events posted via proxy skip our tap → zero round-trip, no flicker.
         if currentProxy != nil {
-            // Sentinel mechanism (ported from GoxKey):
-            // When we'd erase ALL on-screen text and then type new text,
-            // Electron/Chromium apps (VSCode, etc.) can swallow the new text
-            // because the field becomes momentarily empty.
-            // Fix: keep one char as "sentinel", type replacement first char,
-            // move cursor left, delete the sentinel, move right, type rest.
-            let needsSentinel = totalBS > 1 && totalBS >= displayBuffer.count && !text.isEmpty
+            if rawMode {
+                sendRawReplacementSync(backspaceCount: totalBS, text: text)
+                flushQueuedKeyDownEvents()
+                return
+            }
+
+            let needsSentinel = totalBS > 1 &&
+                totalBS >= displayBuffer.count &&
+                !text.isEmpty &&
+                !Self.prefersDirectReplacement(for: currentFrontmostBundleID())
             if needsSentinel {
-                // Delete all but one char (leave sentinel on screen)
                 sendBackspacesSync(count: totalBS - 1)
-                // Type first char of replacement text (field now has: sentinel + firstChar)
                 let firstChar = String(text.prefix(1))
                 let rest = String(text.dropFirst())
                 sendTextSync(firstChar)
-                // Move cursor left past the first char we just typed
                 sendArrowSync(left: true)
-                // Delete the sentinel char
                 sendBackspacesSync(count: 1)
-                // Move cursor right (back to end)
                 sendArrowSync(left: false)
-                // Type remaining text
                 if !rest.isEmpty {
                     sendTextSync(rest)
                 }
@@ -791,6 +950,12 @@ extension AppDelegate {
                     sendTextSync(text)
                 }
             }
+            flushQueuedKeyDownEvents()
+            return
+        }
+
+        if rawMode {
+            sendRawReplacementPost(backspaceCount: totalBS, text: text)
             flushQueuedKeyDownEvents()
             return
         }
@@ -809,6 +974,240 @@ extension AppDelegate {
                 self.finishReplacementInjection()
             }
         }
+    }
+
+    private func adjustedReplacementForCursorContext(deleteCount: Int, text: String) -> (Int, String) {
+        guard deleteCount > 0, !text.isEmpty else {
+            return (deleteCount, text)
+        }
+
+        let split = Self.splitTrailingBoundary(text)
+        guard !split.1.isEmpty else {
+            return (deleteCount, text)
+        }
+        guard let textBeforeCursor = readTextBeforeCursor() else {
+            return (deleteCount, text)
+        }
+
+        var presentBoundary = split.1
+        while !presentBoundary.isEmpty && !textBeforeCursor.hasSuffix(presentBoundary) {
+            presentBoundary.removeFirst()
+        }
+
+        let wordDeleteCount = max(0, deleteCount - split.1.count)
+        return (wordDeleteCount + presentBoundary.count, split.0 + presentBoundary)
+    }
+
+    private func tryApplyCursorContextTone(input: String) -> Bool {
+        guard cursorContextToneEditArmed else { return false }
+        guard Self.isToneEditKey(input, inputMethod: transformer.inputMethod) else {
+            clearCursorToneEditContext()
+            return false
+        }
+        let context: CursorToneContext
+        if let localContext = cursorContextToneEditCache ?? previousWordBeforeLocalCursor() {
+            context = localContext
+        } else if let accessibilityContext = previousWordBeforeCursor() {
+            context = accessibilityContext
+        } else {
+            clearCursorToneEditContext()
+            return false
+        }
+        guard let action = transformer.applyTone(to: context.word, input: input) else {
+            clearCursorToneEditContext()
+            return false
+        }
+
+        if action.text == context.word {
+            cursorContextToneEditArmed = true
+            cursorContextToneEditCache = context
+            return true
+        }
+
+        let oldChars = Array(context.word)
+        let newChars = Array(action.text)
+        var commonPrefixCount = 0
+        let comparableCount = min(oldChars.count, newChars.count)
+        while commonPrefixCount < comparableCount && oldChars[commonPrefixCount] == newChars[commonPrefixCount] {
+            commonPrefixCount += 1
+        }
+
+        let changedSuffix = commonPrefixCount < newChars.count ? String(newChars[commonPrefixCount...]) : ""
+        let replacement = changedSuffix + context.trailingBoundary
+        let deleteCount = (oldChars.count - commonPrefixCount) + context.trailingBoundary.count
+        let rawMode = shouldUseRawTextInputReplacement(allowAXLookup: false)
+        replaceCursorContextTone(last: deleteCount, with: replacement, rawMode: rawMode)
+        replaceLocalTextBeforeCursor(deleteCount: deleteCount, with: replacement)
+        displayBuffer = ""
+        rawCompositionBuffer = ""
+        cursorContextToneEditArmed = true
+        cursorContextToneEditCache = previousWordBeforeLocalCursor() ?? CursorToneContext(word: action.text, trailingBoundary: context.trailingBoundary)
+        return true
+    }
+
+    private func previousWordBeforeCursor() -> CursorToneContext? {
+        guard let textBeforeCursor = readTextBeforeCursor() else { return nil }
+
+        var remaining = Array(textBeforeCursor)
+        var trailingBoundary: [Character] = []
+        while let last = remaining.last, Self.isCursorContextTrailingBoundary(String(last)) {
+            trailingBoundary.insert(remaining.removeLast(), at: 0)
+        }
+
+        var word: [Character] = []
+        while let last = remaining.last, !Self.isWordBoundary(String(last)) {
+            word.insert(remaining.removeLast(), at: 0)
+        }
+
+        guard !word.isEmpty else { return nil }
+        return CursorToneContext(word: String(word), trailingBoundary: String(trailingBoundary))
+    }
+
+    private func clearCursorToneEditContext() {
+        cursorContextToneEditArmed = false
+        cursorContextToneEditCache = nil
+    }
+
+    private func armCursorToneEditContext() {
+        cursorContextToneEditArmed = true
+        cursorContextToneEditCache = previousWordBeforeLocalCursor()
+    }
+
+    private func insertLocalText(_ text: String) {
+        replaceLocalTextBeforeCursor(deleteCount: 0, with: text)
+    }
+
+    private func replaceLocalTextBeforeCursor(deleteCount: Int, with text: String) {
+        localCursorOffset = min(max(localCursorOffset, 0), localTextContext.count)
+        let deleteCount = min(max(deleteCount, 0), localCursorOffset)
+        if deleteCount > 0 {
+            let start = localCursorOffset - deleteCount
+            localTextContext.removeSubrange(start..<localCursorOffset)
+            localCursorOffset = start
+        }
+
+        let inserted = Array(text)
+        if !inserted.isEmpty {
+            localTextContext.insert(contentsOf: inserted, at: localCursorOffset)
+            localCursorOffset += inserted.count
+        }
+
+        trimLocalTextContext()
+        if cursorContextToneEditArmed {
+            cursorContextToneEditCache = previousWordBeforeLocalCursor()
+        }
+    }
+
+    private func deleteLocalCharacterBeforeCursor() {
+        guard localCursorOffset > 0, localCursorOffset <= localTextContext.count else { return }
+        localTextContext.remove(at: localCursorOffset - 1)
+        localCursorOffset -= 1
+        cursorContextToneEditCache = previousWordBeforeLocalCursor()
+    }
+
+    private func deleteLocalWordBeforeCursor() {
+        localCursorOffset = min(max(localCursorOffset, 0), localTextContext.count)
+        guard localCursorOffset > 0 else { return }
+
+        let end = localCursorOffset
+        var start = end
+        while start > 0 && Self.isCursorContextTrailingBoundary(String(localTextContext[start - 1])) {
+            start -= 1
+        }
+        while start > 0 && !Self.isWordBoundary(String(localTextContext[start - 1])) {
+            start -= 1
+        }
+
+        guard start < end else { return }
+        localTextContext.removeSubrange(start..<end)
+        localCursorOffset = start
+        cursorContextToneEditCache = previousWordBeforeLocalCursor()
+    }
+
+    private func updateLocalCursorForNavigation(keyCode: Int64, flags: CGEventFlags) {
+        localCursorOffset = min(max(localCursorOffset, 0), localTextContext.count)
+        let wordNavigation = flags.contains(.maskAlternate) || flags.contains(.maskControl)
+
+        switch keyCode {
+        case 123:
+            if wordNavigation {
+                moveLocalCursorToPreviousWordBoundary()
+            } else {
+                localCursorOffset = max(0, localCursorOffset - 1)
+            }
+        case 124:
+            if wordNavigation {
+                moveLocalCursorToNextWordBoundary()
+            } else {
+                localCursorOffset = min(localTextContext.count, localCursorOffset + 1)
+            }
+        case 115:
+            localCursorOffset = 0
+        case 119:
+            localCursorOffset = localTextContext.count
+        default:
+            localTextContext.removeAll(keepingCapacity: true)
+            localCursorOffset = 0
+        }
+
+        cursorContextToneEditCache = previousWordBeforeLocalCursor()
+    }
+
+    private func moveLocalCursorToPreviousWordBoundary() {
+        guard localCursorOffset > 0 else { return }
+        var index = localCursorOffset
+
+        while index > 0 && Self.isCursorContextTrailingBoundary(String(localTextContext[index - 1])) {
+            index -= 1
+        }
+        while index > 0 && !Self.isWordBoundary(String(localTextContext[index - 1])) {
+            index -= 1
+        }
+
+        localCursorOffset = index
+    }
+
+    private func moveLocalCursorToNextWordBoundary() {
+        guard localCursorOffset < localTextContext.count else { return }
+        var index = localCursorOffset
+
+        while index < localTextContext.count && Self.isCursorContextTrailingBoundary(String(localTextContext[index])) {
+            index += 1
+        }
+        while index < localTextContext.count && !Self.isWordBoundary(String(localTextContext[index])) {
+            index += 1
+        }
+
+        localCursorOffset = index
+    }
+
+    private func previousWordBeforeLocalCursor() -> CursorToneContext? {
+        localCursorOffset = min(max(localCursorOffset, 0), localTextContext.count)
+        guard localCursorOffset > 0 else { return nil }
+
+        var boundaryStart = localCursorOffset
+        while boundaryStart > 0 && Self.isCursorContextTrailingBoundary(String(localTextContext[boundaryStart - 1])) {
+            boundaryStart -= 1
+        }
+
+        var wordStart = boundaryStart
+        while wordStart > 0 && !Self.isWordBoundary(String(localTextContext[wordStart - 1])) {
+            wordStart -= 1
+        }
+
+        guard wordStart < boundaryStart else { return nil }
+        return CursorToneContext(
+            word: String(localTextContext[wordStart..<boundaryStart]),
+            trailingBoundary: String(localTextContext[boundaryStart..<localCursorOffset])
+        )
+    }
+
+    private func trimLocalTextContext() {
+        let maxLength = 512
+        guard localTextContext.count > maxLength else { return }
+        let overflow = localTextContext.count - maxLength
+        localTextContext.removeFirst(overflow)
+        localCursorOffset = max(0, localCursorOffset - overflow)
     }
 
     /// Send backspaces synchronously via the event tap proxy (like GoxKey).
@@ -855,7 +1254,208 @@ extension AppDelegate {
             offset = end
         }
     }
-    
+
+    private func replaceCursorContextTone(last count: Int, with text: String, rawMode: Bool) {
+        guard count > 0 || !text.isEmpty else { return }
+        if currentProxy != nil {
+            if rawMode {
+                sendRawReplacementSync(backspaceCount: count, text: text)
+            } else {
+                if count > 0 {
+                    sendBackspacesSync(count: count)
+                }
+                if !text.isEmpty {
+                    sendTextSync(text)
+                }
+            }
+            flushQueuedKeyDownEvents()
+            return
+        }
+
+        replace(last: count, with: text, extraDeleteCount: 0, rawModeOverride: rawMode)
+    }
+
+    private func shouldUseRawTextInputReplacement(allowAXLookup: Bool = true) -> Bool {
+        let bundleID = currentFrontmostBundleID()
+        if let preferred = Self.preferredRawTextInputMode(for: bundleID) {
+            cacheRawTextInputResult(preferred, bundleID: bundleID)
+            lastRawTextInputResult = preferred
+            return preferred
+        }
+
+        let now = ProcessInfo.processInfo.systemUptime
+        if rawTextInputCacheTime > 0,
+           rawTextInputCacheBundleID == bundleID,
+           now - rawTextInputCacheTime <= rawTextInputCacheTTL {
+            lastRawTextInputResult = rawTextInputCacheValue
+            return rawTextInputCacheValue
+        }
+
+        guard allowAXLookup else {
+            if rawTextInputCacheBundleID == bundleID {
+                lastRawTextInputResult = rawTextInputCacheValue
+                return rawTextInputCacheValue
+            }
+            lastRawTextInputResult = false
+            return false
+        }
+
+        guard AXIsProcessTrusted() else {
+            lastRawTextInputResult = false
+            cacheRawTextInputResult(false, bundleID: bundleID)
+            return false
+        }
+        let result = isFocusedElementRawTextSurface()
+        lastRawTextInputResult = result
+        cacheRawTextInputResult(result, bundleID: bundleID)
+        return result
+    }
+
+    private func currentFrontmostBundleID() -> String? {
+        frontmostBundleID ?? NSWorkspace.shared.frontmostApplication?.bundleIdentifier
+    }
+
+    private func cacheRawTextInputResult(_ value: Bool, bundleID: String?) {
+        rawTextInputCacheBundleID = bundleID
+        rawTextInputCacheValue = value
+        rawTextInputCacheTime = ProcessInfo.processInfo.systemUptime
+    }
+
+    private func invalidateRawTextInputCache() {
+        rawTextInputCacheBundleID = nil
+        rawTextInputCacheValue = false
+        rawTextInputCacheTime = 0
+    }
+
+    private static func preferredRawTextInputMode(for bundleID: String?) -> Bool? {
+        guard let bundleID else { return nil }
+        let normalized = bundleID.lowercased()
+        if prefersDirectReplacement(for: normalized) {
+            return false
+        }
+        return rawTextInputBundleIDs.contains(normalized) ? true : nil
+    }
+
+    private static func prefersDirectReplacement(for bundleID: String?) -> Bool {
+        guard let bundleID else { return false }
+        let normalized = bundleID.lowercased()
+        if directReplacementBundleIDs.contains(normalized) {
+            return true
+        }
+        return directReplacementBundleIDFragments.contains { normalized.contains($0) }
+    }
+
+    private func isFocusedElementRawTextSurface() -> Bool {
+        guard let element = focusedElement() else { return false }
+
+        let role = copyAttribute(element, name: kAXRoleAttribute) as? String
+        if role == (kAXTextFieldRole as String) || role == (kAXComboBoxRole as String) {
+            return false
+        }
+
+        if copyAXValue(from: element, name: kAXSelectedTextRangeAttribute) != nil {
+            return false
+        }
+
+        if let parameterizedNames = copyAttribute(element, name: "AXParameterizedAttributeNames") as? [String] {
+            let richTextAttributes: Set<String> = [
+                "AXStringForRange",
+                "AXRangeForLine",
+                "AXLineForIndex",
+                "AXRangeForPosition",
+                "AXBoundsForRange"
+            ]
+            if parameterizedNames.contains(where: { richTextAttributes.contains($0) }) {
+                return false
+            }
+        }
+
+        var valueSettable = DarwinBoolean(false)
+        if AXUIElementIsAttributeSettable(element, kAXValueAttribute as CFString, &valueSettable) == .success,
+           valueSettable.boolValue {
+            return false
+        }
+
+        var rangeSettable = DarwinBoolean(false)
+        if AXUIElementIsAttributeSettable(element, kAXSelectedTextRangeAttribute as CFString, &rangeSettable) == .success,
+           rangeSettable.boolValue {
+            return false
+        }
+
+        if role == (kAXTextAreaRole as String) {
+            return true
+        }
+
+        return copyAttribute(element, name: kAXValueAttribute) is String
+    }
+
+    private func sendRawReplacementSync(backspaceCount: Int, text: String) {
+        guard currentProxy != nil else { return }
+        guard backspaceCount > 0 || !text.isEmpty else { return }
+        guard let source = CGEventSource(stateID: .privateState) else { return }
+
+        let payload = String(repeating: "\u{8}", count: backspaceCount) + text
+        sendRawTextSync(payload, source: source)
+    }
+
+    private func sendRawBackspacesSync(count: Int, source: CGEventSource) {
+        guard let proxy = currentProxy else { return }
+        guard let keyDown = CGEvent(keyboardEventSource: source, virtualKey: 0x33, keyDown: true),
+              let keyUp = CGEvent(keyboardEventSource: source, virtualKey: 0x33, keyDown: false) else { return }
+
+        keyDown.setIntegerValueField(.eventSourceUserData, value: injectedEventTag)
+        keyUp.setIntegerValueField(.eventSourceUserData, value: injectedEventTag)
+
+        for _ in 0..<count {
+            keyDown.tapPostEvent(proxy)
+            keyUp.tapPostEvent(proxy)
+        }
+    }
+
+    private func sendRawTextSync(_ text: String, source: CGEventSource) {
+        guard let proxy = currentProxy else { return }
+
+        let utf16 = Array(text.utf16)
+        var offset = 0
+        while offset < utf16.count {
+            let end = min(offset + 20, utf16.count)
+            var chunk = Array(utf16[offset..<end])
+
+            if let keyDown = CGEvent(keyboardEventSource: source, virtualKey: 0, keyDown: true) {
+                keyDown.keyboardSetUnicodeString(stringLength: chunk.count, unicodeString: &chunk)
+                keyDown.setIntegerValueField(.eventSourceUserData, value: injectedEventTag)
+                keyDown.tapPostEvent(proxy)
+            }
+
+            offset = end
+        }
+    }
+
+    private func sendRawReplacementPost(backspaceCount: Int, text: String) {
+        guard backspaceCount > 0 || !text.isEmpty else { return }
+        guard let source = CGEventSource(stateID: .privateState) else { return }
+
+        let payload = String(repeating: "\u{8}", count: backspaceCount) + text
+        sendTextPost(payload, source: source)
+    }
+
+    private func sendTextPost(_ text: String, source: CGEventSource) {
+        var utf16 = Array(text.utf16)
+        var offset = 0
+        while offset < utf16.count {
+            let end = min(offset + 20, utf16.count)
+            var chunk = Array(utf16[offset..<end])
+
+            if let keyDown = CGEvent(keyboardEventSource: source, virtualKey: 0, keyDown: true) {
+                keyDown.keyboardSetUnicodeString(stringLength: chunk.count, unicodeString: &chunk)
+                keyDown.setIntegerValueField(.eventSourceUserData, value: injectedEventTag)
+                keyDown.post(tap: .cghidEventTap)
+            }
+
+            offset = end
+        }
+    }
+
     /// Send a single arrow key event via the event tap proxy.
     /// Used for sentinel mechanism — navigate around the sentinel char.
     private func sendArrowSync(left: Bool) {
@@ -929,12 +1529,10 @@ extension AppDelegate {
         if shouldBypassVietnameseInput() {
             transformer.reset()
             displayBuffer = ""
-            if let s = queued.unicodeString {
-                // Use replace with 0 backspaces to handle text injection asynchronously and safely
-                replace(last: 0, with: s, extraDeleteCount: 0)
-            } else {
-                sendKey(CGKeyCode(keyCode))
-            }
+            rawCompositionBuffer = ""
+            clearCursorToneEditContext()
+            lastRawTextInputResult = false
+            sendQueuedKey(queued)
             return
         }
 
@@ -942,34 +1540,96 @@ extension AppDelegate {
                                 flags.contains(.maskControl) ||
                                 flags.contains(.maskAlternate)
 
+        if Self.isControlW(keyCode: keyCode, flags: flags) {
+            transformer.deleteCurrentWord()
+            deleteLocalWordBeforeCursor()
+            displayBuffer = ""
+            rawCompositionBuffer = ""
+            armCursorToneEditContext()
+            lastRawTextInputResult = false
+            sendQueuedKey(queued)
+            return
+        }
+
+        if Self.isOptionBackspace(keyCode: keyCode, flags: flags) {
+            transformer.deleteCurrentWord()
+            deleteLocalWordBeforeCursor()
+            displayBuffer = ""
+            rawCompositionBuffer = ""
+            armCursorToneEditContext()
+            lastRawTextInputResult = false
+            sendQueuedKey(queued)
+            return
+        }
+
         if keyCode == Self.backspaceKey && !hasActionModifier {
+            let shouldKeepCursorToneContext = cursorContextToneEditArmed
             transformer.deleteLastCharacter()
-            if !displayBuffer.isEmpty {
-                displayBuffer.removeLast()
+            deleteLocalCharacterBeforeCursor()
+            displayBuffer = transformer.currentText()
+            if shouldKeepCursorToneContext {
+                armCursorToneEditContext()
+            } else {
+                clearCursorToneEditContext()
+            }
+            if !rawCompositionBuffer.isEmpty {
+                rawCompositionBuffer.removeLast()
             }
             sendKey(CGKeyCode(Self.backspaceKey))
             return
         }
 
+        let isNavigationKey = Self.navigationKeys.contains(keyCode)
         if keyCode == Self.forwardDeleteKey ||
            keyCode == Self.escapeKey ||
-           Self.navigationKeys.contains(keyCode) ||
+           isNavigationKey ||
            hasActionModifier {
             transformer.reset()
             displayBuffer = ""
+            rawCompositionBuffer = ""
+            if isNavigationKey {
+                updateLocalCursorForNavigation(keyCode: keyCode, flags: flags)
+                armCursorToneEditContext()
+            } else {
+                clearCursorToneEditContext()
+            }
+            lastRawTextInputResult = false
             sendKey(CGKeyCode(keyCode))
             return
         }
 
         guard let s = queued.unicodeString else {
-            sendKey(CGKeyCode(keyCode))
+            sendQueuedKey(queued)
             return
         }
 
         refreshTransformerSettings()
 
+        if tryApplyCursorContextTone(input: s) {
+            return
+        }
+
+        if Self.isWordBoundary(s) {
+            _ = transformer.process(input: s)
+            insertLocalText(s)
+            rawCompositionBuffer = ""
+            displayBuffer = ""
+            clearCursorToneEditContext()
+            sendQueuedKey(queued)
+            return
+        }
+
         if let action = transformer.process(input: s) {
-            let extraDeleteCount = shouldWipeGhostSuggestion() ? 1 : 0
+            let rawMode = shouldUseRawTextInputReplacement()
+            let extraDeleteCount = rawMode ? 0 : (shouldWipeGhostSuggestion() ? 1 : 0)
+
+            if displayBuffer.isEmpty && action.deleteCount > 0 {
+                let adjusted = adjustedReplacementForCursorContext(deleteCount: action.deleteCount, text: action.text)
+                replace(last: adjusted.0, with: adjusted.1, extraDeleteCount: 0, rawModeOverride: rawMode)
+                replaceLocalTextBeforeCursor(deleteCount: adjusted.0, with: adjusted.1)
+                displayBuffer = adjusted.1
+                return
+            }
 
             // Same diff logic as handle(event:)
             let newDisplay: String
@@ -981,15 +1641,39 @@ extension AppDelegate {
                 newDisplay = prefix + action.text
             }
 
-            let (diffBS, diffSuffix) = Self.diffParts(old: displayBuffer, new: newDisplay)
-            let totalBS = extraDeleteCount + diffBS
-            replace(last: totalBS, with: diffSuffix, extraDeleteCount: 0)
+            if rawMode {
+                let (diffBS, diffSuffix) = Self.diffParts(old: displayBuffer, new: newDisplay)
+                replace(last: diffBS, with: diffSuffix, extraDeleteCount: 0, rawModeOverride: true)
+                replaceLocalTextBeforeCursor(deleteCount: diffBS, with: diffSuffix)
+            } else {
+                let (diffBS, diffSuffix) = Self.diffParts(old: displayBuffer, new: newDisplay)
+                let totalBS = extraDeleteCount + diffBS
+                replace(last: totalBS, with: diffSuffix, extraDeleteCount: 0, rawModeOverride: rawMode)
+                replaceLocalTextBeforeCursor(deleteCount: diffBS, with: diffSuffix)
+            }
             displayBuffer = newDisplay
+            clearCursorToneEditContext()
         } else {
-            // No transformation — pass through. Track the char.
             displayBuffer.append(s)
-            replace(last: 0, with: s, extraDeleteCount: 0)
+            insertLocalText(s)
+            clearCursorToneEditContext()
+            sendQueuedKey(queued)
         }
+    }
+
+    private func sendQueuedKey(_ queued: QueuedKeyDownEvent) {
+        guard let source = CGEventSource(stateID: .combinedSessionState) else { return }
+        let key = CGKeyCode(queued.keyCode)
+
+        let down = CGEvent(keyboardEventSource: source, virtualKey: key, keyDown: true)
+        down?.flags = queued.flags
+        down?.setIntegerValueField(.eventSourceUserData, value: injectedEventTag)
+        down?.post(tap: .cghidEventTap)
+
+        let up = CGEvent(keyboardEventSource: source, virtualKey: key, keyDown: false)
+        up?.flags = queued.flags
+        up?.setIntegerValueField(.eventSourceUserData, value: injectedEventTag)
+        up?.post(tap: .cghidEventTap)
     }
 
     private func sendKey(_ key: CGKeyCode) {
@@ -1065,6 +1749,40 @@ extension AppDelegate {
         return DispatchQueue.main.sync { work() }
     }
 
+    private func readTextBeforeCursor() -> String? {
+        let work: () -> String? = { [weak self] in
+            guard let self, let element = self.focusedElement() else { return nil }
+            guard let rangeValue = copyAXValue(from: element, name: kAXSelectedTextRangeAttribute) else { return nil }
+
+            var range = CFRange()
+            guard AXValueGetValue(rangeValue, .cfRange, &range) else { return nil }
+            guard range.location >= 0 else { return nil }
+
+            if let value = copyAttribute(element, name: kAXValueAttribute) as? String,
+               range.location <= value.utf16.count {
+                let utf16Index = value.utf16.index(value.utf16.startIndex, offsetBy: range.location)
+                guard let cursorIndex = String.Index(utf16Index, within: value) else { return nil }
+                return String(value[..<cursorIndex])
+            }
+
+            guard range.location > 0 else { return "" }
+            let windowLength = min(range.location, 256)
+            var queryRange = CFRange(location: range.location - windowLength, length: windowLength)
+            guard let queryValue = AXValueCreate(.cfRange, &queryRange) else { return nil }
+            guard let stringForRange = copyParameterizedAttribute(
+                element,
+                name: "AXStringForRange",
+                parameter: queryValue
+            ) as? String else { return nil }
+            return stringForRange
+        }
+
+        if Thread.isMainThread {
+            return work()
+        }
+        return DispatchQueue.main.sync { work() }
+    }
+
     private func focusedElement() -> AXUIElement? {
         if let frontmost = NSWorkspace.shared.frontmostApplication {
             let appElement = AXUIElementCreateApplication(frontmost.processIdentifier)
@@ -1086,6 +1804,17 @@ extension AppDelegate {
     private func copyAttribute(_ element: AXUIElement, name: String) -> CFTypeRef? {
         var value: CFTypeRef?
         let result = AXUIElementCopyAttributeValue(element, name as CFString, &value)
+        return result == .success ? value : nil
+    }
+
+    private func copyParameterizedAttribute(_ element: AXUIElement, name: String, parameter: CFTypeRef) -> CFTypeRef? {
+        var value: CFTypeRef?
+        let result = AXUIElementCopyParameterizedAttributeValue(
+            element,
+            name as CFString,
+            parameter,
+            &value
+        )
         return result == .success ? value : nil
     }
 
@@ -1117,6 +1846,11 @@ private struct SelectionRangeContext {
 
         return true
     }
+}
+
+private struct CursorToneContext {
+    let word: String
+    let trailingBoundary: String
 }
 
 extension CGEvent {

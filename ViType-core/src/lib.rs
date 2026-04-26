@@ -22,7 +22,7 @@ use vni::is_vni_word_boundary;
 
 // ==================== VitypeEngine ====================
 
-const HISTORY_WORD_LIMIT: usize = 3;
+const HISTORY_WORD_LIMIT: usize = usize::MAX;
 
 #[derive(Clone, Debug)]
 struct WordSegment {
@@ -52,6 +52,7 @@ pub struct VitypeEngine {
     tone_placement: TonePlacement,
     output_encoding: OutputEncoding,
     input_method: InputMethod,
+    pending_history_edit: bool,
 }
 
 impl VitypeEngine {
@@ -70,6 +71,7 @@ impl VitypeEngine {
             tone_placement: TonePlacement::Orthographic,
             output_encoding: OutputEncoding::Unicode,
             input_method: InputMethod::Telex,
+            pending_history_edit: false,
         }
     }
 
@@ -131,6 +133,13 @@ impl VitypeEngine {
             return None;
         }
 
+        if self.buffer.is_empty() && self.pending_history_edit {
+            if let Some(action) = self.try_apply_history_edit_key(ch) {
+                return Some(action);
+            }
+            self.pending_history_edit = false;
+        }
+
         if is_word_boundary(ch, self.input_method) {
             if should_clear_history_on_boundary(ch) {
                 self.reset_current_word();
@@ -165,6 +174,12 @@ impl VitypeEngine {
         }
 
         self.buffer.push(ch);
+
+        if self.should_preserve_visible_text_for_valid_prefixed_suffix(self.buffer.len()) {
+            self.is_foreign_mode = true;
+            self.clear_transform_state();
+            return None;
+        }
 
         if self.suppressed_transform_key == Some(ch_lower) {
             if self.auto_fix_tone && is_vowel(ch) {
@@ -952,7 +967,16 @@ impl VitypeEngine {
         &mut self,
         previous_buffer_count: usize,
     ) -> Option<KeyTransformAction> {
-        if !self.is_invalid_vietnamese_syllable(self.buffer.len()) {
+        let before = self.buffer.len();
+        let has_multiple_vowel_clusters = self.has_multiple_vowel_clusters(before);
+        let has_invalid_final_consonant = self.has_invalid_final_consonant(before);
+        if !has_multiple_vowel_clusters && !has_invalid_final_consonant {
+            return None;
+        }
+
+        if self.should_preserve_visible_text_for_invalid_suffix(before) {
+            self.is_foreign_mode = true;
+            self.clear_transform_state();
             return None;
         }
 
@@ -1025,6 +1049,111 @@ impl VitypeEngine {
         }
 
         !Self::is_allowed_final_consonant(&tail)
+    }
+
+    fn should_preserve_visible_text_for_invalid_suffix(&self, before: usize) -> bool {
+        if self.input_method != InputMethod::Vni {
+            return false;
+        }
+        if before < 2 {
+            return false;
+        }
+
+        let suffix_char = self.buffer[before - 1];
+        if !suffix_char.is_alphabetic() {
+            return false;
+        }
+
+        let prefix_end = before - 1;
+        if self.has_multiple_vowel_clusters(prefix_end)
+            || self.has_invalid_final_consonant(prefix_end)
+        {
+            return false;
+        }
+
+        if !self.buffer[..prefix_end].iter().any(|ch| !ch.is_ascii()) {
+            return false;
+        }
+
+        let last_vowel_index = match self.last_effective_vowel_index(prefix_end) {
+            Some(index) => index,
+            None => return false,
+        };
+
+        let mut tail = String::new();
+        for ch in &self.buffer[last_vowel_index + 1..prefix_end] {
+            if is_vowel(*ch) || !ch.is_alphabetic() {
+                return false;
+            }
+            tail.push(lower_char(*ch));
+        }
+
+        if tail.is_empty() {
+            return false;
+        }
+
+        Self::is_allowed_final_consonant(&tail)
+    }
+
+    fn should_preserve_visible_text_for_valid_prefixed_suffix(&self, before: usize) -> bool {
+        if before < 2 {
+            return false;
+        }
+
+        let suffix_char = self.buffer[before - 1];
+        if !suffix_char.is_alphabetic() {
+            return false;
+        }
+
+        let suffix_lower = lower_char(suffix_char);
+        match self.input_method {
+            InputMethod::Telex => {
+                if matches!(suffix_lower, 's' | 'f' | 'r' | 'x' | 'j' | 'z') {
+                    return false;
+                }
+            }
+            InputMethod::Vni => {}
+        }
+
+        let prefix_end = before - 1;
+        if !self.has_multiple_vowel_clusters(before) && !self.has_invalid_final_consonant(before) {
+            return false;
+        }
+
+        if self.has_multiple_vowel_clusters(prefix_end)
+            || self.has_invalid_final_consonant(prefix_end)
+        {
+            return false;
+        }
+
+        if !self.buffer[..prefix_end]
+            .iter()
+            .any(|ch| TONED_TO_BASE.contains_key(ch))
+        {
+            return false;
+        }
+
+        let last_vowel_index = match self.last_effective_vowel_index(prefix_end) {
+            Some(index) => index,
+            None => return false,
+        };
+
+        let mut tail = String::new();
+        for ch in &self.buffer[last_vowel_index + 1..prefix_end] {
+            if is_vowel(*ch) || !ch.is_alphabetic() {
+                return false;
+            }
+            tail.push(lower_char(*ch));
+        }
+
+        if tail.is_empty() {
+            return false;
+        }
+
+        match self.input_method {
+            InputMethod::Telex => matches!(tail.as_str(), "ng" | "nh" | "ch"),
+            InputMethod::Vni => Self::is_allowed_final_consonant(&tail),
+        }
     }
 
     fn is_allowed_final_consonant(tail: &str) -> bool {
@@ -1630,6 +1759,35 @@ impl VitypeEngine {
     pub(crate) fn reset(&mut self) {
         self.reset_current_word();
         self.history.clear();
+        self.pending_history_edit = false;
+    }
+
+    pub(crate) fn current_text(&self) -> String {
+        self.buffer.iter().collect()
+    }
+
+    pub(crate) fn apply_tone_to_text(&self, text: &str, input: &str) -> Option<String> {
+        let mut input_chars = input.chars();
+        let ch = input_chars.next()?;
+        if input_chars.next().is_some() || !is_history_edit_key(ch, self.input_method) {
+            return None;
+        }
+
+        if text.is_empty() {
+            return None;
+        }
+
+        let mut engine = VitypeEngine::new();
+        engine.auto_fix_tone = self.auto_fix_tone;
+        engine.free_tone_placement = self.free_tone_placement;
+        engine.tone_placement = self.tone_placement;
+        engine.output_encoding = self.output_encoding;
+        engine.input_method = self.input_method;
+        engine.buffer = text.chars().collect();
+        engine.raw_buffer = text.chars().collect();
+
+        engine.process(input)?;
+        Some(engine.current_text())
     }
 
     fn commit_current_word_to_history_if_needed(&mut self) {
@@ -1720,6 +1878,20 @@ impl VitypeEngine {
         engine
     }
 
+    fn engine_from_word_segment(&self, word: WordSegment) -> VitypeEngine {
+        let mut engine = VitypeEngine::new();
+        engine.auto_fix_tone = self.auto_fix_tone;
+        engine.free_tone_placement = self.free_tone_placement;
+        engine.tone_placement = self.tone_placement;
+        engine.output_encoding = self.output_encoding;
+        engine.input_method = self.input_method;
+        engine.buffer = word.buffer;
+        engine.raw_buffer = word.raw_buffer;
+        engine.is_foreign_mode = word.is_foreign_mode;
+        engine.transforms_locked = word.transforms_locked;
+        engine
+    }
+
     fn adopt_current_word_state_from(&mut self, other: VitypeEngine) {
         self.buffer = other.buffer;
         self.raw_buffer = other.raw_buffer;
@@ -1766,6 +1938,8 @@ impl VitypeEngine {
     }
 
     pub(crate) fn delete_last_character(&mut self) {
+        self.pending_history_edit = false;
+
         if !self.buffer.is_empty() {
             self.delete_last_character_in_current_word();
             return;
@@ -1798,6 +1972,115 @@ impl VitypeEngine {
             None => {}
         }
     }
+
+    pub(crate) fn delete_current_word(&mut self) {
+        if !self.buffer.is_empty() {
+            self.reset_current_word();
+            self.pending_history_edit = self.has_editable_history_word();
+            return;
+        }
+
+        self.delete_word_before_cursor_from_history();
+        self.clear_deleted_word_state();
+        self.pending_history_edit = self.has_editable_history_word();
+    }
+
+    pub(crate) fn delete_word_and_restore_previous(&mut self) {
+        if !self.buffer.is_empty() {
+            self.reset_current_word();
+        } else {
+            self.delete_word_before_cursor_from_history();
+        }
+
+        if matches!(self.history.back(), Some(HistorySegment::Boundary(_))) {
+            self.history.pop_back();
+        }
+        self.restore_last_word_from_history();
+        self.clear_transform_state();
+        self.pending_history_edit = false;
+    }
+
+    fn delete_word_before_cursor_from_history(&mut self) {
+        if matches!(self.history.back(), Some(HistorySegment::Boundary(_))) {
+            self.history.pop_back();
+        }
+
+        if matches!(self.history.back(), Some(HistorySegment::Word(_))) {
+            self.history.pop_back();
+        }
+    }
+
+    fn clear_deleted_word_state(&mut self) {
+        self.clear_transform_state();
+        self.is_foreign_mode = false;
+        self.transforms_locked = false;
+    }
+
+    fn has_editable_history_word(&self) -> bool {
+        match self.history.back() {
+            Some(HistorySegment::Word(_)) => true,
+            Some(HistorySegment::Boundary(_)) if self.history.len() >= 2 => {
+                matches!(
+                    self.history.get(self.history.len() - 2),
+                    Some(HistorySegment::Word(_))
+                )
+            }
+            _ => false,
+        }
+    }
+
+    fn try_apply_history_edit_key(&mut self, ch: char) -> Option<KeyTransformAction> {
+        if !is_history_edit_key(ch, self.input_method) {
+            return None;
+        }
+
+        let history_len = self.history.len();
+        let (word_index, trailing_boundary) = match self.history.back() {
+            Some(HistorySegment::Word(_)) => (history_len - 1, Vec::new()),
+            Some(HistorySegment::Boundary(chars)) if history_len >= 2 => {
+                if !matches!(
+                    self.history.get(history_len - 2),
+                    Some(HistorySegment::Word(_))
+                ) {
+                    return None;
+                }
+                (history_len - 2, chars.clone())
+            }
+            _ => return None,
+        };
+
+        let original_word = match self.history.get(word_index) {
+            Some(HistorySegment::Word(word)) => word.clone(),
+            _ => return None,
+        };
+        let original_word_len = original_word.buffer.len();
+
+        let mut engine = self.engine_from_word_segment(original_word);
+        let input = ch.to_string();
+        engine.process(&input)?;
+
+        if engine.buffer.is_empty() {
+            return None;
+        }
+
+        let new_word_text: String = engine.buffer.iter().collect();
+        let trailing_text: String = trailing_boundary.iter().collect();
+
+        if let Some(slot) = self.history.get_mut(word_index) {
+            *slot = HistorySegment::Word(WordSegment {
+                buffer: engine.buffer,
+                raw_buffer: engine.raw_buffer,
+                is_foreign_mode: engine.is_foreign_mode,
+                transforms_locked: engine.transforms_locked,
+            });
+        }
+
+        self.pending_history_edit = true;
+        Some(KeyTransformAction {
+            delete_count: original_word_len + trailing_boundary.len(),
+            text: format!("{}{}", new_word_text, trailing_text),
+        })
+    }
 }
 
 // ==================== Helper Functions ====================
@@ -1811,6 +2094,13 @@ fn is_word_boundary(ch: char, input_method: InputMethod) -> bool {
 
 fn should_clear_history_on_boundary(ch: char) -> bool {
     ch == '\n' || ch == '\r'
+}
+
+fn is_history_edit_key(ch: char, input_method: InputMethod) -> bool {
+    match input_method {
+        InputMethod::Telex => matches!(lower_char(ch), 's' | 'f' | 'r' | 'x' | 'j' | 'z'),
+        InputMethod::Vni => matches!(ch, '0'..='5'),
+    }
 }
 
 #[cfg(test)]

@@ -107,6 +107,22 @@ final class KeyTransformer {
         }
     }
 
+    func applyTone(to text: String, input: String) -> KeyTransformAction? {
+        guard let engine else { return nil }
+        return text.withCString { textCString in
+            input.withCString { inputCString in
+                let result = vitype_engine_apply_tone_to_text(engine, textCString, inputCString)
+                guard result.has_action else { return nil }
+                guard let textPtr = result.text else {
+                    return KeyTransformAction(deleteCount: Int(result.delete_count), text: "")
+                }
+                let text = String(cString: textPtr)
+                vitype_engine_free_string(textPtr)
+                return KeyTransformAction(deleteCount: Int(result.delete_count), text: text)
+            }
+        }
+    }
+
     func reset() {
         if let engine {
             vitype_engine_reset(engine)
@@ -117,5 +133,25 @@ final class KeyTransformer {
         if let engine {
             vitype_engine_delete_last_character(engine)
         }
+    }
+
+    func deleteCurrentWord() {
+        if let engine {
+            vitype_engine_delete_current_word(engine)
+        }
+    }
+
+    func deleteWordAndRestorePrevious() {
+        if let engine {
+            vitype_engine_delete_word_and_restore_previous(engine)
+        }
+    }
+
+    func currentText() -> String {
+        guard let engine else { return "" }
+        guard let textPtr = vitype_engine_current_text(engine) else { return "" }
+        let text = String(cString: textPtr)
+        vitype_engine_free_string(textPtr)
+        return text
     }
 }
